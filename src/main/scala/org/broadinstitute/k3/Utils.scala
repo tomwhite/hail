@@ -380,4 +380,17 @@ object Utils {
         lines.foreach(fw.write)
     }
   }
+
+  def compareDouble(a: Double, b: Double, absTolerance: Double = 1.0E-6, relTolerance: Double = 1.0E-6) =
+    math.abs(a - b) <= absTolerance && math.abs(a - b) <= relTolerance * math.abs(b)
+
+  //FixMe: Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
+  def time[T](block: => T) = {
+    val t0 = System.nanoTime()
+    val result = block
+    val t1 = System.nanoTime()
+    println("time: " + (t1 - t0)/1e6 + "ms")
+    result
+  }
+
 }
