@@ -9,6 +9,8 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   override def hasNext: Boolean = bit.hasNext
 
   override def next(): String = bit.next()
+
+  def remove() = {} //FIXME what the hell am I doing
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec)
