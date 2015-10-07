@@ -97,5 +97,5 @@ object LeveneHaldane {
 
   // If we ever want to sample, it seems standard to replace `null` with a
   // default Random Generator `new Well19937c()`
-  def apply(nA: Int, n: Int): LeveneHaldane = LeveneHaldane(nA, n, null)
+  def apply(n: Int, nA: Int): LeveneHaldane = LeveneHaldane(n, nA, null)
 }

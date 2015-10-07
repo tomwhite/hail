@@ -7,7 +7,6 @@ import org.apache.commons.math3.util.CombinatoricsUtils.factorialLog
 import org.broadinstitute.k3.Utils._
 
 
-
 class LeveneHaldaneSuite extends TestNGSuite {
 
   def LH(n: Int, nA: Int)(nAB: Int): Double = {

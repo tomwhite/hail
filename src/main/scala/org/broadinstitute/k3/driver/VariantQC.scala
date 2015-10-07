@@ -46,7 +46,7 @@ object VariantQC extends Command {
     )
 
     val derivedMethods: Array[DerivedMethod] = Array(
-      nNonRefPer, rHetrozygosityPer, rHetHomPer, pHwePerVariant
+      nNonRefPer, rHetHomPer, rHetFrequencyPer, HWEPerVariant
     )
 
     val r = results(vds, methods, derivedMethods)
