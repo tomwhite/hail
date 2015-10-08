@@ -1,0 +1,14 @@
+@namespace("org.broadinstitute.k3.formats.avro")
+protocol K3 {
+record Contig {
+  union { null, string } name = null;
+  union { null, long } length = null;
+}
+
+record Variant {
+  union { null, Contig } contig = null;
+  union { null, long } start = null;
+  union { null, string } ref = null;
+  union { null, string } alt = null;
+}
+}

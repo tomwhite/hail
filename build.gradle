@@ -2,9 +2,15 @@ buildscript {
     repositories {
         mavenCentral()
         jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
     }
     dependencies {
         classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.2'
+        classpath 'com.google.collections:google-collections:1.0'
+        classpath 'org.apache.avro:avro-compiler:1.7.7'
+        classpath 'com.commercehub.gradle.plugin:gradle-avro-plugin:0.6.0'
     }
 }
 
@@ -15,6 +21,7 @@ apply plugin: 'application'
 apply plugin: 'maven'
 apply plugin: 'jacoco'
 apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.commercehub.gradle.plugin.avro'
 
 repositories {
     mavenCentral()
@@ -76,7 +83,18 @@ dependencies {
     compile 'org.scalacheck:scalacheck_' + scalaMajorVersion + ':1.12.4'
     compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.11.2'
     compile 'args4j:args4j:2.32'
+    compile 'org.apache.avro:avro:1.7.7'
+    compile 'org.apache.parquet:parquet-avro:1.8.1'
 }
+
+/*
+task generateAvro(type: com.commercehub.gradle.plugin.avro.GenerateAvroJavaTask) {
+    source("src/main/avro")
+    destinationDir = file("dest/avro")
+}
+
+compileJava.source(generateAvro.outputs)
+*/
 
 test {
     useTestNG {

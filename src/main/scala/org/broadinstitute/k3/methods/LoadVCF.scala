@@ -1,7 +1,9 @@
 package org.broadinstitute.k3.methods
 
+import org.apache.spark.sql.SQLContext
+
 import scala.io.Source
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.SparkContext
 import org.broadinstitute.k3.variant._
 import org.broadinstitute.k3.Utils._
 import org.broadinstitute.k3.vcf
@@ -9,6 +11,7 @@ import org.broadinstitute.k3.vcf
 object LoadVCF {
   // FIXME move to VariantDataset
   def apply(sc: SparkContext,
+    sqlContext: SQLContext,
     file: String,
     readerBuilder: vcf.AbstractRecordReaderBuilder = vcf.HtsjdkRecordReaderBuilder,
     vsmtype: String = "sparky",
@@ -49,6 +52,6 @@ object LoadVCF {
     }
 
     // FIXME null should be contig lengths
-    VariantSampleMatrix(vsmtype, VariantMetadata(null, sampleIds, headerLines), genotypes)
+    VariantSampleMatrix(sqlContext, vsmtype, VariantMetadata(null, sampleIds, headerLines), genotypes)
   }
 }

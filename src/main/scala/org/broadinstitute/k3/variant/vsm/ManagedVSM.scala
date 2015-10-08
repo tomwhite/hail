@@ -1,13 +1,10 @@
 package org.broadinstitute.k3.variant.vsm
 
-import java.io._
-
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.k3.Utils._
 import org.broadinstitute.k3.variant._
-
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._

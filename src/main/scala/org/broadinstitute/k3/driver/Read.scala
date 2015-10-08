@@ -49,7 +49,7 @@ object Read extends Command {
       else if (input.endsWith(".vcf")
         || input.endsWith(".vcf.bgz")
         || input.endsWith(".vcf.gz")) {
-        LoadVCF(state.sc, input, readerBuilder, options.vsmtype, !options.noCompress,
+        LoadVCF(state.sc, state.sqlContext, input, readerBuilder, options.vsmtype, !options.noCompress,
           if (options.nPartitions != 0)
             Some(options.nPartitions)
           else
