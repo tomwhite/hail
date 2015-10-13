@@ -6,6 +6,8 @@ import org.broadinstitute.k3.variant._
 import org.broadinstitute.k3.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
+import scala.collection.mutable
+
 object VariantQC extends Command {
 
   class Options extends BaseOptions {
@@ -33,8 +35,13 @@ object VariantQC extends Command {
             m.seqOpWithKeys(v, s, g, acci.asInstanceOf[m.T])),
         (x, y) => methodsBc.value.zipWith[Any, Any, Any](x, y, (m, xi, yi) =>
             m.combOp(xi.asInstanceOf[m.T], yi.asInstanceOf[m.T])))
-      .mapValues(values =>
-        values ++ derivedMethods.map(_.map(MethodValues(methodIndex, values))))
+      .mapValues(values => {
+        val b = mutable.ArrayBuilder.make[Any]()
+        values.foreach2[AggregateMethod](methodsBc.value, (v, m) => m.emit(v.asInstanceOf[m.T], b))
+        val methodValues = MethodValues(methodIndex, values)
+        derivedMethods.map(_.emit(methodValues, b))
+        b.result()
+      })
   }
 
   def run(state: State, options: Options): State = {
@@ -43,11 +50,11 @@ object VariantQC extends Command {
     val methods: Array[AggregateMethod] = Array(
       nCalledPer, nNotCalledPer,
       nHomRefPer, nHetPer, nHomVarPer,
-      AlleleDepthPerVariant, dpStatCounterPer, gqStatCounterPer
+      AlleleBalancePer, dpStatCounterPer, gqStatCounterPer
     )
 
     val derivedMethods: Array[DerivedMethod] = Array(
-      nNonRefPer, rHetrozygosityPer, rHetHomPer, pHwePerVariant, dpMeanPer, dpStDevPer, gqMeanPer, gqStDevPer
+      nNonRefPer, rHetHomPer, rHetFrequencyPer, HWEPerVariant
     )
 
     val r = results(vds, methods, derivedMethods)
@@ -56,12 +63,12 @@ object VariantQC extends Command {
 
     writeTextFile(options.output + ".header", state.hadoopConf) { s =>
       val header = "Chrom" + "\t" + "Pos" + "\t" + "Ref" + "\t" + "Alt" + "\t" +
-        allMethods.map(_.name).mkString("\t") + "\n"
+        allMethods.map(_.name).filter(_ != null).mkString("\t") + "\n"
       s.write(header)
     }
 
     r.map { case (v, a) =>
-      (Array[Any](v.contig, v.start, v.ref, v.alt) ++ a).mkString("\t")
+      (Array[Any](v.contig, v.start, v.ref, v.alt) ++ a).map(toTSVString).mkString("\t")
     }.saveAsTextFile(options.output)
 
     state

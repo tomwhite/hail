@@ -4,28 +4,11 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.k3.variant._
 import org.broadinstitute.k3.Utils._
 
-object gqMeanPer extends DerivedMethod {
-
-  def name = "gqMean"
-
-  type T = Double
-
-  override def map(vals: MethodValues) = vals.get(gqStatCounterPer).mean
-}
-
-object gqStDevPer extends DerivedMethod {
-
-  def name = "gqMean"
-
-  type T = Double
-
-  override def map(vals: MethodValues) = vals.get(gqStatCounterPer).stdev
-}
-
+import scala.collection.mutable
 
 object gqStatCounterPer extends AggregateMethod {
 
-  def name = "gqStatCounter"
+  def name = "gqMean\tgqStDev"
 
   type T = StatCounter
 
@@ -38,4 +21,8 @@ object gqStatCounterPer extends AggregateMethod {
   }
 
   override def combOp(sc1: StatCounter, sc2: StatCounter) = sc1.merge(sc2)
+  override def emit(sc: StatCounter, b: mutable.ArrayBuilder[Any]) {
+    b += sc.mean
+    b += sc.stdev
+  }
 }

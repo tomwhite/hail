@@ -169,6 +169,13 @@ class RichIteratorOfByte(i: Iterator[Byte]) {
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
+  def foreach2[T2](v2: Iterable[T2], f: (T, T2) => Unit) {
+    val i = a.iterator
+    val i2 = v2.iterator
+    while (i.hasNext && i2.hasNext)
+      f(i.next(), i2.next())
+  }
+
   // FIXME unify with Vector zipWith above
   def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V)(implicit vct: ClassTag[V]): Array[V] = {
     val i = a.iterator
@@ -225,6 +232,7 @@ class RichMap[K, V](m: Map[K, V]) {
 class RichOption[T](o: Option[T]) {
   def contains(v: T): Boolean = o.isDefined && o.get == v
 }
+
 object Utils {
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
@@ -330,7 +338,7 @@ object Utils {
   }
 
   def writeObjectFile[T](filename: String,
-                         hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
+    hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
     try {
       f(oos)
@@ -340,7 +348,7 @@ object Utils {
   }
 
   def readObjectFile[T](filename: String,
-                        hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
+    hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
     try {
       f(ois)
@@ -350,7 +358,7 @@ object Utils {
   }
 
   def writeTextFile[T](filename: String,
-                       hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
+    hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
     val oos = hadoopCreate(filename, hConf)
     val fw = new OutputStreamWriter(oos)
     try {
@@ -361,7 +369,7 @@ object Utils {
   }
 
   def readFile[T](filename: String,
-                  hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
+    hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
     val is = hadoopOpen(filename, hConf)
     try {
       reader(is)
@@ -371,7 +379,7 @@ object Utils {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-                 lines: Traversable[String], header: String = null) {
+    lines: Traversable[String], header: String = null) {
     writeTextFile(filename, hConf) {
       fw =>
         if (header != null) fw.write(header)
@@ -384,8 +392,26 @@ object Utils {
       if (!p) throw new AssertionError
     }
   }
-    // FIXME This should be replaced by AB's version that assesses relative difference as well
+
+  // FIXME This should be replaced by AB's version that assesses relative difference as well
   def closeEnough(a: Double, b: Double, cutoff: Double = 0.0001) = {
-      math.abs(a - b) < cutoff
-    }
+    math.abs(a - b) < cutoff
+  }
+
+  def compareDouble(a: Double, b: Double, absTolerance: Double = 1.0E-6, relTolerance: Double = 1.0E-6) =
+    math.abs(a - b) <= absTolerance && math.abs(a - b) <= relTolerance * math.abs(b)
+
+  // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
+  def time[T](block: => T) = {
+    val t0 = System.nanoTime()
+    val result = block
+    val t1 = System.nanoTime()
+    println("time: " + (t1 - t0) / 1e6 + "ms")
+    result
+  }
+
+  def toTSVString(a: Any): String = a match {
+    case o: Option[Any] => o.map(toTSVString).getOrElse("NA")
+    case _ => a.toString
+  }
 }

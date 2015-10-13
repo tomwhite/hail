@@ -34,7 +34,7 @@ object nNonRefPer extends DerivedMethod {
 
   def name = "nNonRef"
 
-  def map(values: MethodValues) =
+  override def map(values: MethodValues) =
     values.get(nHetPer) + values.get(nHomVarPer)
 }
 
@@ -45,28 +45,27 @@ object nNotCalledPer extends SumMethod {
   override def map(g: Genotype) = if (g.isNotCalled) 1 else 0
 }
 
-object rHetrozygosityPer extends DerivedMethod {
-  type T = Double
+object rHetFrequencyPer extends DerivedMethod {
+  type T = Option[Double]
 
-  def name = "rHeterozygosity"
+  def name = "rHetFrequency"
 
-  def map(values: MethodValues) = {
+  override def map(values: MethodValues) = {
     val nCalled = values.get(nCalledPer)
     val nHet = values.get(nHetPer)
-    // FIXME Option
-    if (nCalled != 0) nHet.toDouble / nCalled else -1
+    if (nCalled != 0) Some(nHet.toDouble / nCalled) else None
   }
 }
 
 // FIXME: need to account for all HomRef
 object rHetHomPer extends DerivedMethod {
-  type T = Double
+  type T = Option[Double]
 
   def name = "rHetHom"
 
-  def map(values: MethodValues) = {
+  override def map(values: MethodValues) = {
     val nHom = values.get(nHomRefPer) + values.get(nHomVarPer)
     val nHet = values.get(nHetPer)
-    if (nHom != 0) nHet.toDouble / nHom else -1
+    if (nHom != 0) Some(nHet.toDouble / nHom) else None
   }
 }

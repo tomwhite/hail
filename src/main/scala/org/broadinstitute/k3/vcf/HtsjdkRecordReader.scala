@@ -10,7 +10,7 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 
   override def next(): String = bit.next()
 
-  def remove() = {} //FIXME what the hell am I doing
+  override def remove() { throw new UnsupportedOperationException }
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec)
