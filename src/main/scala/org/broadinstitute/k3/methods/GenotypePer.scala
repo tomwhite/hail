@@ -61,11 +61,11 @@ object rHetFrequencyPer extends DerivedMethod {
 object rHetHomPer extends DerivedMethod {
   type T = Option[Double]
 
-  def name = "rHetHom"
+  def name = "rHetHomVar"
 
   override def map(values: MethodValues) = {
-    val nHom = values.get(nHomRefPer) + values.get(nHomVarPer)
+    val nHomVar = values.get(nHomVarPer)
     val nHet = values.get(nHetPer)
-    if (nHom != 0) Some(nHet.toDouble / nHom) else None
+    if (nHomVar != 0) Some(nHet.toDouble / nHomVar) else None
   }
 }

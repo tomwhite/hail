@@ -337,6 +337,10 @@ object Utils {
     hadoopFS(dirname, hConf).mkdirs(new hadoop.fs.Path(dirname))
   }
 
+  def hadoopDelete(filename: String, hConf: hadoop.conf.Configuration, recursive: Boolean) {
+    hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
+  }
+
   def writeObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))

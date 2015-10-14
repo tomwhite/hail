@@ -67,9 +67,12 @@ object VariantQC extends Command {
       s.write(header)
     }
 
+    val output = options.output
+
+    hadoopDelete(output, vds.sparkContext.hadoopConfiguration, true)
     r.map { case (v, a) =>
       (Array[Any](v.contig, v.start, v.ref, v.alt) ++ a).map(toTSVString).mkString("\t")
-    }.saveAsTextFile(options.output)
+    }.saveAsTextFile(output)
 
     state
   }
