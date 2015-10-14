@@ -39,7 +39,7 @@ object VariantQC extends Command {
         val b = mutable.ArrayBuilder.make[Any]()
         values.foreach2[AggregateMethod](methodsBc.value, (v, m) => m.emit(v.asInstanceOf[m.T], b))
         val methodValues = MethodValues(methodIndex, values)
-        derivedMethods.map(_.emit(methodValues, b))
+        derivedMethods.foreach(_.emit(methodValues, b))
         b.result()
       })
   }
@@ -54,7 +54,7 @@ object VariantQC extends Command {
     )
 
     val derivedMethods: Array[DerivedMethod] = Array(
-      nNonRefPer, rHetHomPer, rHetFrequencyPer, HWEPerVariant
+      nNonRefPer, rHetHomPer, rHetFrequencyPer // , HWEPerVariant
     )
 
     val r = results(vds, methods, derivedMethods)
