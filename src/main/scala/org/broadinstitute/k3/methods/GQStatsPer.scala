@@ -26,3 +26,36 @@ object gqStatCounterPer extends AggregateMethod {
     b += sc.stdev
   }
 }
+
+
+object gqStatCounterPerGenotype extends AggregateMethod {
+  def name = "dpMeanHomRef\tdpStDevHomRef\tdpMeanHet\tdpStDevHet\tdpMeanHomVar\tdpStDevHomVar"
+
+  type T = (StatCounter, StatCounter, StatCounter)
+
+  override def aggZeroValue: T = (StatCounter(), StatCounter(), StatCounter())
+
+  override def seqOpWithKeys(v: Variant, s: Int, g: Genotype,
+                             scs: T): T = {
+    if (g.isCalled) {
+      if (g.isHomRef)
+        scs._1.merge(g.dp)
+      if (g.isHet)
+        scs._2.merge(g.dp)
+      if (g.isHomVar)
+        scs._3.merge(g.dp)
+    }
+    scs
+  }
+
+  override def combOp(scs1: T, scs2: T): T = (scs1._1.merge(scs2._1), scs1._2.merge(scs2._2), scs1._3.merge(scs2._3))
+
+  override def emit(scs: T, b: mutable.ArrayBuilder[Any]) {
+    b += scs._1.mean
+    b += scs._1.stdev
+    b += scs._2.mean
+    b += scs._2.stdev
+    b += scs._3.mean
+    b += scs._3.stdev
+  }
+}

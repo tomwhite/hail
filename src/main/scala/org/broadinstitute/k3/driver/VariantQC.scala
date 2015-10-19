@@ -50,7 +50,7 @@ object VariantQC extends Command {
     val methods: Array[AggregateMethod] = Array(
       nCalledPer, nNotCalledPer,
       nHomRefPer, nHetPer, nHomVarPer,
-      AlleleBalancePer, dpStatCounterPer, gqStatCounterPer
+      AlleleBalancePer, dpStatCounterPer, dpStatCounterPerGenotype, gqStatCounterPer, gqStatCounterPerGenotype
     )
 
     val derivedMethods: Array[DerivedMethod] = Array(

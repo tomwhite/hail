@@ -54,7 +54,7 @@ object SampleQC extends Command {
       nHomRefPer, nHetPer, nHomVarPer, AlleleBalancePer,
       nSNPPerSample, nInsertionPerSample, nDeletionPerSample,
       new nSingletonPerSample(singletons), nTransitionPerSample, nTransversionPerSample,
-      dpStatCounterPer, gqStatCounterPer
+      dpStatCounterPer, dpStatCounterPerGenotype, gqStatCounterPer, gqStatCounterPerGenotype
     )
 
     val derivedMethods: Array[DerivedMethod] = Array(
