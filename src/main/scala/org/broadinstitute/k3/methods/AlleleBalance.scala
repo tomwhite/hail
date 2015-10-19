@@ -6,7 +6,7 @@ import org.broadinstitute.k3.variant.Genotype
 import scala.collection.mutable
 
 object AlleleBalancePer extends MapRedMethod {
-  def name = "refDepth\taltDepth\tAlleleBalance"
+  def name = "AlleleBalance"
   type T = (Int, Int)
   override def map(g: Genotype): T = if (g.isHet) g.ad else (0, 0)
   def foldZeroValue = (0, 0)
@@ -18,9 +18,7 @@ object AlleleBalancePer extends MapRedMethod {
     val mind = refd.min(altd)
     val minp = d.probability(mind)
     val mincp = d.cumulativeProbability(mind)
-    val p = (2 * mincp - minp)
-    b += refd
-    b += altd
+    val p = 2 * mincp - minp
     b += p.min(1.0).max(0.0)
   }
 }
