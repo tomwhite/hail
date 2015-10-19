@@ -29,7 +29,7 @@ object dpStatCounterPer extends AggregateMethod {
 
 
 object dpStatCounterPerGenotype extends AggregateMethod {
-  def name = "gqMeanHomRef\tgqStDevHomRef\tgqMeanHet\tgqStDevHet\tgqMeanHomVar\tgqStDevHomVar"
+  def name = "dpMeanHomRef\tdpStDevHomRef\tdpMeanHet\tdpStDevHet\tdpMeanHomVar\tdpStDevHomVar"
 
   type T = (StatCounter, StatCounter, StatCounter)
 
@@ -39,11 +39,11 @@ object dpStatCounterPerGenotype extends AggregateMethod {
                              scs: T): T = {
     if (g.isCalled) {
       if (g.isHomRef)
-        scs._1.merge(g.gq)
+        scs._1.merge(g.dp)
       if (g.isHet)
-        scs._2.merge(g.gq)
+        scs._2.merge(g.dp)
       if (g.isHomVar)
-        scs._3.merge(g.gq)
+        scs._3.merge(g.dp)
     }
     scs
   }
