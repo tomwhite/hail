@@ -67,9 +67,8 @@ object SampleQC extends Command {
       val header = "sampleID" + "\t" + allMethods.map(_.name).filter(_ != null).mkString("\t") + "\n"
       s.write(header)
 
-      for ((id, i) <- vds.sampleIds.zipWithIndex) {
-        s.write(id + "\t" + r(i).map(toTSVString).mkString("\t") + "\n")
-      }
+      for (i <- r.keys)
+        s.write(vds.sampleIds(i) + "\t" + r(i).map(toTSVString).mkString("\t") + "\n")
     }
 
     state
