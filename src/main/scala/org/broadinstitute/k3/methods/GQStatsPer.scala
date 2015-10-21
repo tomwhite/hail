@@ -51,11 +51,29 @@ object gqStatCounterPerGenotype extends AggregateMethod {
   override def combOp(scs1: T, scs2: T): T = (scs1._1.merge(scs2._1), scs1._2.merge(scs2._2), scs1._3.merge(scs2._3))
 
   override def emit(scs: T, b: mutable.ArrayBuilder[Any]) {
-    b += scs._1.mean
-    b += scs._1.stdev
-    b += scs._2.mean
-    b += scs._2.stdev
-    b += scs._3.mean
-    b += scs._3.stdev
+    if (scs._1.count > 0) {
+      b += scs._1.mean
+      b += scs._1.stdev
+    }
+    else {
+      b += "NA"
+      b += "NA"
+    }
+    if (scs._2.count > 0) {
+      b += scs._2.mean
+      b += scs._2.stdev
+    }
+    else {
+      b += "NA"
+      b += "NA"
+    }
+    if (scs._3.count > 0) {
+      b += scs._3.mean
+      b += scs._3.stdev
+    }
+    else {
+      b += "NA"
+      b += "NA"
+    }
   }
 }
