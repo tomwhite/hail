@@ -39,11 +39,11 @@ object gqStatCounterPerGenotype extends AggregateMethod {
                              scs: T): T = {
     if (g.isCalled) {
       if (g.isHomRef)
-        scs._1.merge(g.dp)
+        scs._1.merge(g.gq)
       if (g.isHet)
-        scs._2.merge(g.dp)
+        scs._2.merge(g.gq)
       if (g.isHomVar)
-        scs._3.merge(g.dp)
+        scs._3.merge(g.gq)
     }
     scs
   }
