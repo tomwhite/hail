@@ -29,7 +29,7 @@ object gqStatCounterPer extends AggregateMethod {
 
 
 object gqStatCounterPerGenotype extends AggregateMethod {
-  def name = "dpMeanHomRef\tdpStDevHomRef\tdpMeanHet\tdpStDevHet\tdpMeanHomVar\tdpStDevHomVar"
+  def name = "gqMeanHomRef\tgqStDevHomRef\tgqMeanHet\tgqStDevHet\tgqMeanHomVar\tgqStDevHomVar"
 
   type T = (StatCounter, StatCounter, StatCounter)
 
