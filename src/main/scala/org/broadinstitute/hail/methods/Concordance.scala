@@ -1,7 +1,88 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.variant._
+
+import org.apache.spark.rdd.RDD
 import scala.collection.mutable.Map
 import org.broadinstitute.hail.variant.GenotypeType._
+
+/*object Merge {
+  def mergeRule1(gts:(GenotypeType,GenotypeType)): GenotypeType = {
+    if (gts._1 == gts._2)
+      gts._1
+    else if (gts._1 == NoCall)
+      gts._2
+    else if (gts._2 == NoCall)
+      gts._1
+    else
+      NoCall
+  }
+
+  def mergeRule2(gts:(GenotypeType,GenotypeType)): GenotypeType = if (gts._1 != NoCall) gts._1 else gts._2
+  def mergeRule3(gts:(GenotypeType,GenotypeType)): GenotypeType = if (gts._2 != NoCall) gts._2 else gts._1
+  def mergeRule4(gts:(GenotypeType,GenotypeType)): GenotypeType = gts._1
+  def mergeRule5(gts:(GenotypeType,GenotypeType)): GenotypeType = gts._2
+
+  def getMergeGenotype(mergeMode:Int=1,gts:(Option[GenotypeType],Option[GenotypeType])):Option[GenotypeType] = {
+    mergeMode match {
+      case 1 => mergeRule1(gts) // default -- consensus merging
+      case 2 => mergeRule2(gts) // vds1 + NoCall --> vds2
+      case 3 => mergeRule3(gts) // vds2 + NoCall --> vds1; Not sure I interpreted this correctly
+      case 4 => mergeRule4(gts) // vds1
+      case 5 => mergeRule5(gts) // vds2
+    }
+  }
+
+  def mergeRDDs(rdd1: RDD[((Variant, Int), Genotype)],
+    rdd2: RDD[((Variant, Int), Genotype)]): RDD[((Variant, Int), (Option[Genotype], Option[Genotype]))] = {
+    val ret = rdd1.fullOuterJoin(rdd2)
+    ret
+  }
+
+  def mergeRDDs2(mergeMode:Int, rdd1: RDD[((Variant, Int), Genotype)],
+    rdd2: RDD[((Variant, Int), Genotype)]): RDD[((Variant, Int),Genotype)] = {
+    rdd1
+      .fullOuterJoin(rdd2)
+      .map(x => getMergeGenotype(x,mergeMode))
+  }*/
+
+/*  def concordanceFromRDD(rdd: RDD[((Variant, Int), (Option[Genotype], Option[Genotype]))]): ConcordanceTable = {
+    rdd
+      .fold
+      .fold(new ConcordanceTable2)
+  }*/
+
+  /*def apply(mergeMode: Int, vds1: VariantSampleMatrix, vds2: VariantSampleMatrix): VariantSampleMatrix = {
+    vds1
+      .fullOuterJoin(vds2)
+      .map(getMergeGenotype(mergeMode,gts))
+      .cache()
+  }*/
+//}
+
+/*class Merge (mode: Int, vds1: VariantSampleMatrix, vds2: VariantSampleMatrix) {
+  // Need to make sure sample names are used and not ids when merging
+  // 1. Full outer join with default value of NoCall
+  //vds1.fullOuterJoin(vds2)
+  // 2. Calculate concordance and Apply a given merge mode
+  // 3. Output merged RDD
+
+  // 1. Get Unique set of Sample IDs
+  val sampleIds = vds1.sampleIds.toSet ++ vds2.sampleIds.toSet
+
+}*/
+
+/*class ConcordanceTable2 {
+  val combMap = Map[(GenotypeType, GenotypeType), Int]()
+  private val genotypes = Array(HomRef, Het, HomVar, NoCall)
+  for (g1 <- genotypes; g2 <- genotypes)
+    combMap((g1, g2)) = 0
+
+  def add(gt1: GenotypeType, gt2: GenotypeType): Unit = {
+    combMap((gt1, gt2)) = combMap((gt1, gt2)) + 1
+  }
+  def result: Map[(GenotypeType, GenotypeType), Int] = combMap
+}*/
 
 class ConcordanceTable {
   // Class to keep track of the genotype combinations when comparing two datasets
