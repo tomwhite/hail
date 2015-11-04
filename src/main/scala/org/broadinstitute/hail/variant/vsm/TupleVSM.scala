@@ -2,9 +2,11 @@ package org.broadinstitute.hail.variant.vsm
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd.PairRDDFunctions
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
+import org.apache.spark.SparkContext._
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -119,4 +121,27 @@ class TupleVSM[T](val metadata: VariantMetadata,
       .map { case (v, s, g) => (v, g) }
       .foldByKey(zeroValue)(combOp)
   }
+
+  //def merge(that:RDD[(Variant,Int,T)]): RDD[(Variant,Int,(T,T))] = throw new UnsupportedOperationException
+
+  def fullOuterJoin(other:RDD[(Variant,Int,T)]): RDD[((Variant,Int),(Option[T],Option[T]))] = {
+    rdd
+      .map { case (v,s,g) => ((v,s),g)}
+      .fullOuterJoin(other.map{ case (v,s,g) => ((v,s),g)})
+  }
+
+  // map { tuple => ((tuple._1, tuple._2), tuple._3) }
+  // case (v,s,g) => ...
+  // case _ => throw Error()
+
+  // generateTestRDD
+  // val vds1 = ...
+  // val vds2 = ...
+  // vdsComb = vds1.fOJ(vds2)
+  // vdsComb.collect()
+
+
+//  def merge(that:RDD[(Variant,Int,T)]): RDD[(Variant,Int,(T,T))] = {
+ //   rdd.fullOuterJoin(that)
+ // }
 }

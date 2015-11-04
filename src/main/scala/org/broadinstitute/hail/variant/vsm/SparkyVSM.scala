@@ -164,4 +164,6 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
     rdd
       .mapValues(_.foldLeft(zeroValue)((acc, ig) => combOp(acc, ig._2)))
   }
+
+  def fullOuterJoin(other:RDD[(Variant,Int,T)]): RDD[((Variant,Int),(Option[T],Option[T]))] = throw new UnsupportedOperationException
 }

@@ -95,4 +95,7 @@ abstract class VariantSampleMatrix[T] {
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(Int, T)]
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)]
+
+  def fullOuterJoin(other: RDD[(Variant,Int,T)]): RDD[((Variant,Int),(Option[T],Option[T]))]
+
 }
