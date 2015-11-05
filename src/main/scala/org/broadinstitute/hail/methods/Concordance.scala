@@ -6,111 +6,67 @@ import org.apache.spark.rdd.RDD
 import scala.collection.mutable.Map
 import org.broadinstitute.hail.variant.GenotypeType._
 
-/*object Merge {
-  def mergeRule1(gts:(GenotypeType,GenotypeType)): GenotypeType = {
-    if (gts._1 == gts._2)
-      gts._1
-    else if (gts._1 == NoCall)
-      gts._2
-    else if (gts._2 == NoCall)
-      gts._1
-    else
-      NoCall
-  }
+class ConcordanceTable extends Serializable {
+  // Class to keep track of the genotype combinations when comparing two datasets
 
-  def mergeRule2(gts:(GenotypeType,GenotypeType)): GenotypeType = if (gts._1 != NoCall) gts._1 else gts._2
-  def mergeRule3(gts:(GenotypeType,GenotypeType)): GenotypeType = if (gts._2 != NoCall) gts._2 else gts._1
-  def mergeRule4(gts:(GenotypeType,GenotypeType)): GenotypeType = gts._1
-  def mergeRule5(gts:(GenotypeType,GenotypeType)): GenotypeType = gts._2
-
-  def getMergeGenotype(mergeMode:Int=1,gts:(Option[GenotypeType],Option[GenotypeType])):Option[GenotypeType] = {
-    mergeMode match {
-      case 1 => mergeRule1(gts) // default -- consensus merging
-      case 2 => mergeRule2(gts) // vds1 + NoCall --> vds2
-      case 3 => mergeRule3(gts) // vds2 + NoCall --> vds1; Not sure I interpreted this correctly
-      case 4 => mergeRule4(gts) // vds1
-      case 5 => mergeRule5(gts) // vds2
+  val table = Map[(Option[GenotypeType], Option[GenotypeType]), Long]()
+  val possibleTypes:Array[Option[GenotypeType]] = Array(Some(HomRef), Some(Het), Some(HomVar), Some(NoCall), None)
+  val typeNames = Map(Some(HomRef) -> "HomRef",Some(Het) -> "Het", Some(HomVar) -> "HomVar",Some(NoCall) -> "NoCall", None -> "None")
+  for (i <- possibleTypes) {
+    for (j <- possibleTypes) {
+      table((i,j)) = 0
     }
   }
 
-  def mergeRDDs(rdd1: RDD[((Variant, Int), Genotype)],
-    rdd2: RDD[((Variant, Int), Genotype)]): RDD[((Variant, Int), (Option[Genotype], Option[Genotype]))] = {
-    val ret = rdd1.fullOuterJoin(rdd2)
-    ret
+/*  def addCount(gt1:GenotypeType, gt2:GenotypeType,count:Int=1): Unit = {
+    val gt1t = gt1 match {
+      case HomRef => Some(HomRef)
+      case HomVar => Some(HomVar)
+      case Het => Some(Het)
+      case NoCall => Some(NoCall)
+      case _ => None
+    }
+    val gt2t = gt2 match {
+      case HomRef => Some(HomRef)
+      case HomVar => Some(HomVar)
+      case Het => Some(Het)
+      case NoCall => Some(NoCall)
+      case _ => None
+    }
+    table((gt1t, gt2t)) += count
+  }*/
+
+  def addCount(gt1: Option[Genotype], gt2: Option[Genotype],count:Int=1): ConcordanceTable = {
+    val gt1t = gt1 match {
+      case Some(gt) => Some(gt.gtType)
+      case None => None
+    }
+    val gt2t = gt2 match {
+      case Some(gt) => Some(gt.gtType)
+      case None => None
+    }
+    table((gt1t, gt2t)) += count
+    this
   }
 
-  def mergeRDDs2(mergeMode:Int, rdd1: RDD[((Variant, Int), Genotype)],
-    rdd2: RDD[((Variant, Int), Genotype)]): RDD[((Variant, Int),Genotype)] = {
-    rdd1
-      .fullOuterJoin(rdd2)
-      .map(x => getMergeGenotype(x,mergeMode))
-  }*/
-
-/*  def concordanceFromRDD(rdd: RDD[((Variant, Int), (Option[Genotype], Option[Genotype]))]): ConcordanceTable = {
-    rdd
-      .fold
-      .fold(new ConcordanceTable2)
-  }*/
-
-  /*def apply(mergeMode: Int, vds1: VariantSampleMatrix, vds2: VariantSampleMatrix): VariantSampleMatrix = {
-    vds1
-      .fullOuterJoin(vds2)
-      .map(getMergeGenotype(mergeMode,gts))
-      .cache()
-  }*/
-//}
-
-/*class Merge (mode: Int, vds1: VariantSampleMatrix, vds2: VariantSampleMatrix) {
-  // Need to make sure sample names are used and not ids when merging
-  // 1. Full outer join with default value of NoCall
-  //vds1.fullOuterJoin(vds2)
-  // 2. Calculate concordance and Apply a given merge mode
-  // 3. Output merged RDD
-
-  // 1. Get Unique set of Sample IDs
-  val sampleIds = vds1.sampleIds.toSet ++ vds2.sampleIds.toSet
-
-}*/
-
-/*class ConcordanceTable2 {
-  val combMap = Map[(GenotypeType, GenotypeType), Int]()
-  private val genotypes = Array(HomRef, Het, HomVar, NoCall)
-  for (g1 <- genotypes; g2 <- genotypes)
-    combMap((g1, g2)) = 0
-
-  def add(gt1: GenotypeType, gt2: GenotypeType): Unit = {
-    combMap((gt1, gt2)) = combMap((gt1, gt2)) + 1
+  def merge(other:ConcordanceTable): ConcordanceTable = {
+    val mergeCT = new ConcordanceTable
+    for (gt1 <- possibleTypes) {
+      for (gt2 <- possibleTypes) {
+        mergeCT.table((gt1,gt2)) += (this.table((gt1,gt2)) + other.table((gt1,gt2)))
+      }
+    }
+    mergeCT
   }
-  def result: Map[(GenotypeType, GenotypeType), Int] = combMap
-}*/
 
-class ConcordanceTable {
-  // Class to keep track of the genotype combinations when comparing two datasets
-
-  // possible genotypes
-  private val genotypes = Array(HomRef,Het,HomVar,NoCall)
-
-  // get all combinations of genotypes as tuples
-  private val genoCombs = for (g1 <- genotypes; g2 <- genotypes) yield (g1,g2)
-
-  //initialize and populate mutable Map which keeps track of number of occurances of genotype combination
-  private val table = collection.mutable.Map[(GenotypeType,GenotypeType),Int]()
-  for (gc <- genoCombs) table += (gc -> 0)
-
-  def getValue(k:(GenotypeType,GenotypeType)):String =
-    if (table.contains(k)) table.get(k).get.toString else "NA"
-
-  def addCount(k:(GenotypeType,GenotypeType),count:Int=1) =
-    table(k) += count
-
-  def isGenotypesEqual(k:(GenotypeType,GenotypeType)): Boolean =
+  def isGenotypesEqual(k:(Option[GenotypeType],Option[GenotypeType])): Boolean =
     if (k._1 == k._2)
       true
     else
       false
 
-  def isNoCall(k:(GenotypeType,GenotypeType)): Boolean =
-    if (k._1 == NoCall || k._2 == NoCall)
+  def isNoCall(k:(Option[GenotypeType],Option[GenotypeType])): Boolean =
+    if (k._1 == Some(NoCall) || k._2 == Some(NoCall))
       true
     else
       false
@@ -129,15 +85,19 @@ class ConcordanceTable {
 
   def calcConcordance(): Float = 1 - calcDiscordance()
 
+  def writeConcordance(sep:String="\t"): String = {
+    val data = for (i <- possibleTypes; j <- possibleTypes) yield table.get((i,j)).getOrElse("NA")
+    s"%s$sep%.2f$sep%s".format(numTotal(),calcConcordance(),data.mkString(sep))
+  }
+
   override def toString: String = {
-    val typeNames = Map(HomVar -> "HomVar",Het -> "Het",HomRef -> "HomRef",NoCall -> "NoCall")
 
-    def dataLine(gt1:GenotypeType,genotypes:Array[GenotypeType]): Array[String] =
-      for (gt2 <- genotypes) yield getValue((gt1,gt2))
+    def dataLine(gt1:Option[GenotypeType],genotypes:Array[Option[GenotypeType]]): Array[String] =
+      for (gt2 <- possibleTypes) yield table.get((gt1,gt2)).get.toString
 
-    val data:Array[String] = for (gt1 <- genotypes) yield typeNames.get(gt1).get + "\t" + dataLine(gt1,genotypes).mkString("\t")
+    val data:Array[String] = for (gt1 <- possibleTypes) yield typeNames.get(gt1).get + "\t" + dataLine(gt1,possibleTypes).mkString("\t")
 
-    " \t" + genotypes.map(x => typeNames.get(x).get).mkString("\t") + "\n" + data.mkString("\n") + "\n"
+    " \t" + possibleTypes.map(x => typeNames.get(x).get).mkString("\t") + "\n" + data.mkString("\n") + "\n"
   }
 
 }

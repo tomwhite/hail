@@ -122,26 +122,9 @@ class TupleVSM[T](val metadata: VariantMetadata,
       .foldByKey(zeroValue)(combOp)
   }
 
-  //def merge(that:RDD[(Variant,Int,T)]): RDD[(Variant,Int,(T,T))] = throw new UnsupportedOperationException
-
   def fullOuterJoin(other:RDD[(Variant,Int,T)]): RDD[((Variant,Int),(Option[T],Option[T]))] = {
     rdd
       .map { case (v,s,g) => ((v,s),g)}
       .fullOuterJoin(other.map{ case (v,s,g) => ((v,s),g)})
   }
-
-  // map { tuple => ((tuple._1, tuple._2), tuple._3) }
-  // case (v,s,g) => ...
-  // case _ => throw Error()
-
-  // generateTestRDD
-  // val vds1 = ...
-  // val vds2 = ...
-  // vdsComb = vds1.fOJ(vds2)
-  // vdsComb.collect()
-
-
-//  def merge(that:RDD[(Variant,Int,T)]): RDD[(Variant,Int,(T,T))] = {
- //   rdd.fullOuterJoin(that)
- // }
 }
