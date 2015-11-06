@@ -18,24 +18,6 @@ class ConcordanceTable extends Serializable {
     }
   }
 
-/*  def addCount(gt1:GenotypeType, gt2:GenotypeType,count:Int=1): Unit = {
-    val gt1t = gt1 match {
-      case HomRef => Some(HomRef)
-      case HomVar => Some(HomVar)
-      case Het => Some(Het)
-      case NoCall => Some(NoCall)
-      case _ => None
-    }
-    val gt2t = gt2 match {
-      case HomRef => Some(HomRef)
-      case HomVar => Some(HomVar)
-      case Het => Some(Het)
-      case NoCall => Some(NoCall)
-      case _ => None
-    }
-    table((gt1t, gt2t)) += count
-  }*/
-
   def addCount(gt1: Option[Genotype], gt2: Option[Genotype],count:Int=1): ConcordanceTable = {
     val gt1t = gt1 match {
       case Some(gt) => Some(gt.gtType)
