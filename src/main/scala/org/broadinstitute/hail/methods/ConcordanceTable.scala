@@ -54,22 +54,29 @@ class ConcordanceTable extends Serializable {
       false
 
   // the reason I made these as methods rather than values is because the table is mutable
-  def numMismatches() = table.filterKeys(!isGenotypesEqual(_)).filterKeys(!isNoCall(_)).values.sum
-  def numMatches() = table.filterKeys(isGenotypesEqual).filterKeys(!isNoCall(_)).values.sum
-  def numNoCall() = table.filterKeys(isNoCall).values.sum
-  def numTotal() = table.values.sum
+  def numMismatches = table.filterKeys(!isGenotypesEqual(_)).filterKeys(!isNoCall(_)).values.sum
+  def numMatches = table.filterKeys(isGenotypesEqual).filterKeys(!isNoCall(_)).values.sum
+  def numNoCall = table.filterKeys(isNoCall).values.sum
+  def numTotal = table.values.sum
 
-  def calcDiscordance() =
-    if (numTotal == 0)
-      Float.NaN
+  def calcDiscordance = {
+    //println(s"nTot=$numTotal, nMatch=$numMatches, nMis=$numMismatches")
+    if ((numMismatches + numMatches) == 0)
+      None
     else
-      numMismatches().toFloat / (numMatches() + numMismatches()).toFloat
+      Some(numMismatches.toDouble / (numMatches + numMismatches))
+  }
 
-  def calcConcordance(): Float = 1 - calcDiscordance()
+  def calcConcordance: Option[Double] = {
+    calcDiscordance match {
+      case Some(value) => Some(1-value)
+      case None => None
+    }
+  }
 
   def writeConcordance(sep:String="\t"): String = {
     val data = for (i <- possibleTypes; j <- possibleTypes) yield table.get((i,j)).getOrElse("NA")
-    s"%s$sep%.2f$sep%s".format(numTotal(),calcConcordance(),data.mkString(sep))
+    s"%s$sep%.2f$sep%s".format(numTotal,calcConcordance,data.mkString(sep))
   }
 
   override def toString: String = {

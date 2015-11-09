@@ -416,6 +416,14 @@ object Utils {
     math.abs(a - b) < cutoff
   }
 
+  def optionCloseEnough(a: Option[Double], b: Option[Double]) = {
+    (a,b) match {
+      case (Some(d1),Some(d2)) => closeEnough(d1,d2)
+      case (None,None) => true
+      case _ => false
+    }
+  }
+
   // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
   def printTime[T](block: => T) = {
     val timed = time(block)

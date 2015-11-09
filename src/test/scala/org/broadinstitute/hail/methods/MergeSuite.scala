@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.utils.TestRDDBuilder
+import org.broadinstitute.hail.variant.GenotypeType._
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
 
@@ -9,45 +10,123 @@ class MergeSuite extends SparkSuite {
   @Test def test() = {
 
     val gt1 = Array(
-      Array(0,1,2,1,0),
-      Array(-1,1,0,1,0),
-      Array(2,1,1,1,2),
-      Array(2,-1,1,-1,0),
-      Array(0,1,2,2,-1))
+      Array(0, 1, 2, 1, 0),
+      Array(-1, 1, 0, 1, 0),
+      Array(2, 1, 1, 1, 2),
+      Array(2, -1, 1, -1, 0),
+      Array(0, 1, 2, 2, -1))
 
     val gt2 = Array(
-      Array(2,0,2,1,0),
-      Array(2,-1,0,-1,0),
-      Array(0,2,1,-1,2),
-      Array(-1,-1,-1,0,-1),
-      Array(1,1,1,1,1))
+      Array(2, 0, 2, 1, 0),
+      Array(2, -1, 0, -1, 0),
+      Array(0, 2, 1, -1, 2),
+      Array(-1, -1, -1, 0, -1),
+      Array(1, 1, 1, 1, 1))
 
-    val trueSampleConc = Map(0 -> 0.0, 1 -> 0.3333, 2 -> 0.75, 3 -> 0.5, 4 -> 1.0)
+    val trueSampleConc: Map[Int, Option[Double]] = Map(0 -> Some(0.0), 1 -> Some(0.3333), 2 -> Some(0.75), 3 -> Some(0.5), 4 -> Some(1.0))
+    val trueVariantConc: Map[String, Option[Double]] = Map("1:0:A:T" -> Some(0.6), "1:1:A:T" -> Some(1.0), "1:2:A:T" -> Some(0.5), "1:3:A:T" -> None, "1:4:A:T" -> Some(0.25))
     val rdd1 = TestRDDBuilder.buildRDD(5, 5, sc, "tuple", gtArray = Some(gt1))
     val rdd2 = TestRDDBuilder.buildRDD(5, 5, sc, "tuple", gtArray = Some(gt2))
 
     val mergedVds = Merge(rdd1, rdd2)
+
+    // Check sample concordance
     val sampleConcordance = mergedVds.sampleConcordance.collectAsMap()
-    sampleConcordance.foreach{case(k,v) => assert(closeEnough(trueSampleConc.get(k).get,v.calcConcordance))}
+    sampleConcordance.foreach { case (s, ct) =>
+      assert(optionCloseEnough(trueSampleConc.get(s).get, ct.calcConcordance))
+    }
 
-    println(mergedVds.writeSampleConcordance("\t"))
-    println(mergedVds.writeVariantConcordance("\t"))
 
-/*    mergedVds.collect().foreach {
-      case ((v,s), (g1, g2)) =>
-        val g1s = g1 match {
-          case Some(gt) => gt.gtString(v)
-          case None => "-/-"
-        }
-        val g2s = g2 match {
-          case Some(gt) => gt.gtString(v)
-          case None => "-/-"
-        }
-      //println("%s\t%s\t%s\t%s".format(v.start, s, g1s, g2s))
-    }*/
+    // Check variant concordance
+    val variantConcordance = mergedVds.variantConcordance.collectAsMap()
+    variantConcordance.foreach { case (v, ct) =>
+      assert(optionCloseEnough(trueVariantConc.get(v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt).get, ct.calcConcordance))
+    }
 
-/*    val conc = Concordance
-    println(conc.writeSampleConcordance(mergedVds,sep=","))
-    println(conc.writeVariantConcordance(mergedVds,sep=","))*/
+
+
+    // Check merged RDD has correct numbers for merge mode 1
+    val mergeTruth1: Map[(String, Int), GenotypeType] = Map(("1:0:A:T", 0) -> NoCall, ("1:0:A:T", 1) -> NoCall, ("1:0:A:T", 2) -> HomVar, ("1:0:A:T", 3) -> Het, ("1:0:A:T", 4) -> HomRef,
+      ("1:1:A:T", 0) -> HomVar, ("1:1:A:T", 1) -> Het, ("1:1:A:T", 2) -> HomRef, ("1:1:A:T", 3) -> Het, ("1:1:A:T", 4) -> HomRef,
+      ("1:2:A:T", 0) -> NoCall, ("1:2:A:T", 1) -> NoCall, ("1:2:A:T", 2) -> Het, ("1:2:A:T", 3) -> Het, ("1:2:A:T", 4) -> HomVar,
+      ("1:3:A:T", 0) -> HomVar, ("1:3:A:T", 1) -> NoCall, ("1:3:A:T", 2) -> Het, ("1:3:A:T", 3) -> HomRef, ("1:3:A:T", 4) -> HomRef,
+      ("1:4:A:T", 0) -> NoCall, ("1:4:A:T", 1) -> Het, ("1:4:A:T", 2) -> NoCall, ("1:4:A:T", 3) -> NoCall, ("1:4:A:T", 4) -> Het)
+
+    val mergedResult1 = mergedVds.applyMergeMode(1).mapValues(gt => gt match {
+      case Some(gt) => gt.gtType
+      case _ => NoCall
+    }
+    ).collectAsMap()
+
+    mergedResult1.foreach { case ((v, s), gt) => assert(mergeTruth1.get((v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt, s)).get == gt) }
+
+
+
+    // Check merged RDD has correct numbers for merge mode 2
+    val mergeTruth2: Map[(String, Int), GenotypeType] = Map(("1:0:A:T", 0) -> HomRef, ("1:0:A:T", 1) -> Het, ("1:0:A:T", 2) -> HomVar, ("1:0:A:T", 3) -> Het, ("1:0:A:T", 4) -> HomRef,
+      ("1:1:A:T", 0) -> HomVar, ("1:1:A:T", 1) -> Het, ("1:1:A:T", 2) -> HomRef, ("1:1:A:T", 3) -> Het, ("1:1:A:T", 4) -> HomRef,
+      ("1:2:A:T", 0) -> HomVar, ("1:2:A:T", 1) -> Het, ("1:2:A:T", 2) -> Het, ("1:2:A:T", 3) -> Het, ("1:2:A:T", 4) -> HomVar,
+      ("1:3:A:T", 0) -> HomVar, ("1:3:A:T", 1) -> NoCall, ("1:3:A:T", 2) -> Het, ("1:3:A:T", 3) -> HomRef, ("1:3:A:T", 4) -> HomRef,
+      ("1:4:A:T", 0) -> HomRef, ("1:4:A:T", 1) -> Het, ("1:4:A:T", 2) -> HomVar, ("1:4:A:T", 3) -> HomVar, ("1:4:A:T", 4) -> Het)
+
+    val mergedResult2 = mergedVds.applyMergeMode(2).mapValues(gt => gt match {
+      case Some(gt) => gt.gtType
+      case _ => NoCall
+    }
+    ).collectAsMap()
+
+    mergedResult2.foreach { case ((v, s), gt) => assert(mergeTruth2.get((v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt, s)).get == gt) }
+
+
+
+    // Check merged RDD has correct numbers for merge mode 3
+    val mergeTruth3: Map[(String, Int), GenotypeType] = Map(("1:0:A:T", 0) -> HomVar, ("1:0:A:T", 1) -> HomRef, ("1:0:A:T", 2) -> HomVar, ("1:0:A:T", 3) -> Het, ("1:0:A:T", 4) -> HomRef,
+      ("1:1:A:T", 0) -> HomVar, ("1:1:A:T", 1) -> Het, ("1:1:A:T", 2) -> HomRef, ("1:1:A:T", 3) -> Het, ("1:1:A:T", 4) -> HomRef,
+      ("1:2:A:T", 0) -> HomRef, ("1:2:A:T", 1) -> HomVar, ("1:2:A:T", 2) -> Het, ("1:2:A:T", 3) -> Het, ("1:2:A:T", 4) -> HomVar,
+      ("1:3:A:T", 0) -> HomVar, ("1:3:A:T", 1) -> NoCall, ("1:3:A:T", 2) -> Het, ("1:3:A:T", 3) -> HomRef, ("1:3:A:T", 4) -> HomRef,
+      ("1:4:A:T", 0) -> Het, ("1:4:A:T", 1) -> Het, ("1:4:A:T", 2) -> Het, ("1:4:A:T", 3) -> Het, ("1:4:A:T", 4) -> Het)
+
+    val mergedResult3 = mergedVds.applyMergeMode(3).mapValues(gt => gt match {
+      case Some(gt) => gt.gtType
+      case _ => NoCall
+    }
+    ).collectAsMap()
+
+    mergedResult3.foreach { case ((v, s), gt) => assert(mergeTruth3.get((v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt, s)).get == gt) }
+
+
+
+    // Check merged RDD has correct numbers for merge mode 4
+    val mergeTruth4: Map[(String, Int), GenotypeType] = Map(("1:0:A:T", 0) -> HomRef, ("1:0:A:T", 1) -> Het, ("1:0:A:T", 2) -> HomVar, ("1:0:A:T", 3) -> Het, ("1:0:A:T", 4) -> HomRef,
+      ("1:1:A:T", 0) -> NoCall, ("1:1:A:T", 1) -> Het, ("1:1:A:T", 2) -> HomRef, ("1:1:A:T", 3) -> Het, ("1:1:A:T", 4) -> HomRef,
+      ("1:2:A:T", 0) -> HomVar, ("1:2:A:T", 1) -> Het, ("1:2:A:T", 2) -> Het, ("1:2:A:T", 3) -> Het, ("1:2:A:T", 4) -> HomVar,
+      ("1:3:A:T", 0) -> HomVar, ("1:3:A:T", 1) -> NoCall, ("1:3:A:T", 2) -> Het, ("1:3:A:T", 3) -> NoCall, ("1:3:A:T", 4) -> HomRef,
+      ("1:4:A:T", 0) -> HomRef, ("1:4:A:T", 1) -> Het, ("1:4:A:T", 2) -> HomVar, ("1:4:A:T", 3) -> HomVar, ("1:4:A:T", 4) -> NoCall)
+
+    val mergedResult4 = mergedVds.applyMergeMode(4).mapValues(gt => gt match {
+      case Some(gt) => gt.gtType
+      case _ => NoCall
+    }
+    ).collectAsMap()
+
+    mergedResult4.foreach { case ((v, s), gt) => assert(mergeTruth4.get((v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt, s)).get == gt) }
+
+
+
+    // Check merged RDD has correct numbers for merge mode 4
+    val mergeTruth5: Map[(String, Int), GenotypeType] = Map(("1:0:A:T", 0) -> HomVar, ("1:0:A:T", 1) -> HomRef, ("1:0:A:T", 2) -> HomVar, ("1:0:A:T", 3) -> Het, ("1:0:A:T", 4) -> HomRef,
+      ("1:1:A:T", 0) -> HomVar, ("1:1:A:T", 1) -> NoCall, ("1:1:A:T", 2) -> HomRef, ("1:1:A:T", 3) -> NoCall, ("1:1:A:T", 4) -> HomRef,
+      ("1:2:A:T", 0) -> HomRef, ("1:2:A:T", 1) -> HomVar, ("1:2:A:T", 2) -> Het, ("1:2:A:T", 3) -> NoCall, ("1:2:A:T", 4) -> HomVar,
+      ("1:3:A:T", 0) -> NoCall, ("1:3:A:T", 1) -> NoCall, ("1:3:A:T", 2) -> NoCall, ("1:3:A:T", 3) -> HomRef, ("1:3:A:T", 4) -> NoCall,
+      ("1:4:A:T", 0) -> Het, ("1:4:A:T", 1) -> Het, ("1:4:A:T", 2) -> Het, ("1:4:A:T", 3) -> Het, ("1:4:A:T", 4) -> Het)
+
+    val mergedResult5 = mergedVds.applyMergeMode(5).mapValues(gt => gt match {
+      case Some(gt) => gt.gtType
+      case _ => NoCall
+    }
+    ).collectAsMap()
+
+    mergedResult5.foreach { case ((v, s), gt) => assert(mergeTruth5.get((v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt, s)).get == gt) }
+
   }
 }
