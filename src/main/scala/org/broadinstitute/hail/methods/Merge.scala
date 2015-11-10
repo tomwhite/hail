@@ -136,7 +136,7 @@ case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]
     header + "\n" + concordances.mkString("\n")
   }
 
-  def toString(nrow:Int=10): String = {
+  def pretty(nrow:Int=10): String = {
     def toLine(v:Variant,s:Int,gt1:Option[Genotype],gt2:Option[Genotype]): String = {
       def getGenotypeString(gt:Option[Genotype],v:Variant):String = {
         gt match {

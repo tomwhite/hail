@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.language.postfixOps
+import org.broadinstitute.hail.methods.Merge
 
 object MergeCommand extends Command {
   def name = "merge"
@@ -12,14 +13,20 @@ object MergeCommand extends Command {
     @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Output root filename")
     var output: String = _
 
-    @Args4jOption(required = false, name = "-f", aliases = Array("--fam"), usage = ".fam file")
-    var famFilename: String = _
+    @Args4jOption(required = false, name = "-m", aliases = Array("--merge-mode"), usage = "Integer between 1-5 representing merge mode")
+    var mergeMode: Int = _
   }
 
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
+//    val vds = state.vds
+//    val mergedVds = Merge(vds,vds,state.sc)
+//    mergedVds.writeSampleConcordance("\t")
+//    mergedVds.writeVariantConcordance("\t")
     println("hello merge")
+    println(options.mergeMode)
+
     state
   }
 }
