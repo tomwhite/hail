@@ -144,7 +144,7 @@ case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]
           case None => "-/-"
         }
       }
-      "%s\t%s\t%s\t%s".format(variantString(v), s, getGenotypeString(gt1,v), getGenotypeString(gt2,v))
+      "%s\t%s\t%s\t%s".format(variantString(v), sampleIds.get(s).get, getGenotypeString(gt1,v), getGenotypeString(gt2,v))
     }
 
     mergeRDD
