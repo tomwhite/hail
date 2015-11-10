@@ -29,9 +29,9 @@ class ConcordanceTableSuite extends SparkSuite{
     assert(ct1.numTotal == 1348)
     assert(optionCloseEnough(ct1.calcDiscordance,Some(0.0546875)))
     assert(optionCloseEnough(ct1.calcConcordance,Some(0.9453125)))
-    assert(ct1.table.get((Some(HomRef),Some(HomRef))).get == 1000)
+    assert(ct1.getCount(Some(Genotype(0,(0,0),0,(0,0,0))),Some(Genotype(0,(0,0),0,(0,0,0)))) == 1000)
 
-   val ct2 = new ConcordanceTable
+    val ct2 = new ConcordanceTable
 
     ct2.addCount(Some(Genotype(0,(0,0),0,(0,0,0))),Some(Genotype(0,(0,0),0,(0,0,0))),1501)
     ct2.addCount(Some(Genotype(1,(0,0),0,(0,0,0))),Some(Genotype(1,(0,0),0,(0,0,0))),201)
@@ -48,14 +48,14 @@ class ConcordanceTableSuite extends SparkSuite{
     ct2.addCount(Some(Genotype(2,(0,0),0,(0,0,0))),Some(Genotype(-1,(0,0),0,(0,0,0))),5)
     ct2.addCount(Some(Genotype(1,(0,0),0,(0,0,0))),Some(Genotype(2,(0,0),0,(0,0,0))),25)
 
-    assert(ct2.table.get((Some(NoCall),Some(HomVar))).get == 20)
+    assert(ct2.getCount(Some(Genotype(-1,(0,0),0,(0,0,0))),Some(Genotype(2,(0,0),0,(0,0,0)))) == 20)
 
 
     val ct3 = ct1.merge(ct2)
 
-    assert(ct3.table.get(Some(HomRef),Some(HomRef)).get == 2501)
-    assert(ct3.table.get(Some(Het),Some(Het)).get == 402)
-    assert(ct3.table.get(Some(NoCall),Some(HomVar)).get == 44)
-    assert(ct3.table.get(Some(HomVar),Some(NoCall)).get == 5)
+    assert(ct3.getCount(Some(Genotype(0,(0,0),0,(0,0,0))),Some(Genotype(0,(0,0),0,(0,0,0)))) == 2501)
+    assert(ct3.getCount(Some(Genotype(1,(0,0),0,(0,0,0))),Some(Genotype(1,(0,0),0,(0,0,0)))) == 402)
+    assert(ct3.getCount(Some(Genotype(-1,(0,0),0,(0,0,0))),Some(Genotype(2,(0,0),0,(0,0,0)))) == 44)
+    assert(ct3.getCount(Some(Genotype(2,(0,0),0,(0,0,0))),Some(Genotype(-1,(0,0),0,(0,0,0)))) == 5)
   }
 }

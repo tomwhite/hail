@@ -9,9 +9,8 @@ import scala.collection.JavaConverters._
 case class State(installDir: String,
   sc: SparkContext,
   sqlContext: SQLContext,
-  // FIXME make option
-  vds: VariantDataset,
-  vds2: VariantDataset) {
+  // FIXME make option //add vds2 here
+  vds: VariantDataset) {
   def hadoopConf = vds.sparkContext.hadoopConfiguration
 }
 

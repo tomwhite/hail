@@ -1,88 +1,67 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.MultiArray2
 import org.broadinstitute.hail.variant._
-
-import org.apache.spark.rdd.RDD
-import scala.collection.mutable.Map
 import org.broadinstitute.hail.variant.GenotypeType._
 import org.broadinstitute.hail.Utils._
 
 class ConcordanceTable extends Serializable {
   // Class to keep track of the genotype combinations when comparing two datasets
 
-  val table = Map[(Option[GenotypeType], Option[GenotypeType]), Long]()
-  val possibleTypes:Array[Option[GenotypeType]] = Array(Some(HomRef), Some(Het), Some(HomVar), Some(NoCall), None)
-  val typeNames = Map(Some(HomRef) -> "HomRef",Some(Het) -> "Het", Some(HomVar) -> "HomVar",Some(NoCall) -> "NoCall", None -> "None")
-  for (i <- possibleTypes) {
-    for (j <- possibleTypes) {
-      table((i,j)) = 0
-    }
+  val table = MultiArray2.fill[Long](5,5)(0)
+
+  private def keyIndex(g: Option[Genotype]) = g.map(_.gtType) match {
+    case Some(HomRef) => 0
+    case Some(Het) => 1
+    case Some(HomVar) => 2
+    case Some(NoCall) => 3
+    case None => 4
   }
 
-  def addCount(gt1: Option[Genotype], gt2: Option[Genotype],count:Int=1): ConcordanceTable = {
-    val gt1t = gt1.map(_.gtType)
-    val gt2t = gt2.map(_.gtType)
+  private def keyIndex(i: Int): Option[GenotypeType] = i match {
+    case 0 => Some(HomRef)
+    case 1 => Some(Het)
+    case 2 => Some(HomVar)
+    case 3 => Some(NoCall)
+    case 4 => None
+  }
 
-    table((gt1t, gt2t)) += count
+  private def isNone(i:Int, j:Int) = i == 4 || j == 4
+  private def isGenotypesEqual(i:Int, j:Int) = i == j
+  private def isNoCall(i:Int, j:Int) = i == 3 || j == 3
+  private def isMatch(i:Int, j:Int) = i == j && i < 3 && j < 3
+  private def isMismatch(i: Int, j: Int) = i != j && i < 3 && j < 3
+
+  def addCount(gt1: Option[Genotype], gt2: Option[Genotype],count:Int=1): ConcordanceTable = {
+    table(keyIndex(gt1),keyIndex(gt2)) += count
     this
   }
 
+  def getCount(gt1: Option[Genotype],gt2:Option[Genotype]): Long = table(keyIndex(gt1),keyIndex(gt2))
+
   def merge(other:ConcordanceTable): ConcordanceTable = {
-    val mergeCT = new ConcordanceTable // group by key, map, join
-    // don't create a new table (don't want to duplicate)
-    // want to use a function so doesn't matter how table is implemented
-    for (gt1 <- possibleTypes) {
-      for (gt2 <- possibleTypes) {
-        mergeCT.table((gt1,gt2)) += (this.table((gt1,gt2)) + other.table((gt1,gt2)))
-      }
+    for ((i,j) <- table.indices) {
+      table(i,j) += other.table(i,j)
     }
-    mergeCT
+    this
   }
 
-  def isGenotypesEqual(k:(Option[GenotypeType],Option[GenotypeType])): Boolean =
-    k._1 == k._2
+  def numTotal = {for ((i,j) <- table.indices) yield table(i,j)}.sum
+  def numNoCall = {for ((i,j) <- table.indices if isNoCall(i,j)) yield table(i,j)}.sum
+  def numMatches = {for ((i,j) <- table.indices if isMatch(i,j)) yield table(i,j)}.sum
+  def numMismatches = {for ((i,j) <- table.indices if isMismatch(i,j)) yield table(i,j)}.sum
 
-  def isNoCall(k:(Option[GenotypeType],Option[GenotypeType])): Boolean =
-    k._1.contains(NoCall) || k._2.contains(NoCall)
+  def calcDiscordance = divOption(numMismatches,numMatches + numMismatches)
+  def calcConcordance = calcDiscordance.map(x => 1-x)
 
-
-  def isNone(k:(Option[GenotypeType],Option[GenotypeType])): Boolean =
-    k._1.isEmpty || k._2.isEmpty
-
-  // the reason I made these as methods rather than values is because the table is mutable
-  def numMismatches = table.filterKeys(!isNone(_)).filterKeys(!isGenotypesEqual(_)).filterKeys(!isNoCall(_)).values.sum
-  def numMatches = table.filterKeys(isGenotypesEqual).filterKeys(!isNoCall(_)).values.sum
-  def numNoCall = table.filterKeys(isNoCall).values.sum
-  def numTotal = table.values.sum
-
-  def calcDiscordance =
-    divOption(numMismatches,numMatches + numMismatches)
-
-  def calcConcordance: Option[Double] = {
-    calcDiscordance match {
-        // change to map function
-      case Some(value) => Some(1-value)
-      case None => None
-    }
-  }
 
   def writeConcordance(sep:String="\t"): String = {
-    val data = for (i <- possibleTypes; j <- possibleTypes) yield table.get((i,j)).getOrElse("NA")
-    val conc = calcConcordance
-    conc match { // make string interpolation only!
-      case Some(x) => s"%s$sep%.2f$sep%s".format(numTotal,conc.get,data.mkString(sep))
-      case None => s"%s$sep%s$sep%s".format(numTotal,"NaN",data.mkString(sep))
+    val data = {for ((i,j) <- table.indices) yield table(i,j)}.mkString(sep)
+    val conc = calcConcordance.map(x => "%.2f".format(x))
+    conc match {
+      case Some(x) => s"$numTotal$sep$conc$sep$data"
+      case None => s"$numTotal${sep}NaN$sep$data"
     }
-  }
-
-  def pretty: String = {
-
-    def dataLine(gt1:Option[GenotypeType],genotypes:Array[Option[GenotypeType]]): Array[String] =
-      for (gt2 <- possibleTypes) yield table.get((gt1,gt2)).get.toString
-
-    val data:Array[String] = for (gt1 <- possibleTypes) yield typeNames.get(gt1).get + "\t" + dataLine(gt1,possibleTypes).mkString("\t")
-
-    " \t" + possibleTypes.map(x => typeNames.get(x).get).mkString("\t") + "\n" + data.mkString("\n") + "\n"
   }
 
 }
