@@ -28,7 +28,7 @@ class MergeSuite extends SparkSuite {
     val rdd1 = TestRDDBuilder.buildRDD(5, 5, sc, "tuple", gtArray = Some(gt1))
     val rdd2 = TestRDDBuilder.buildRDD(5, 5, sc, "tuple", gtArray = Some(gt2))
 
-    val mergedVds = Merge(rdd1, rdd2)
+    val mergedVds = Merge(rdd1, rdd2, sc)
 
     // Check sample concordance
     val sampleConcordance = mergedVds.sampleConcordance.collectAsMap()
@@ -42,7 +42,6 @@ class MergeSuite extends SparkSuite {
     variantConcordance.foreach { case (v, ct) =>
       assert(optionCloseEnough(trueVariantConc.get(v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt).get, ct.calcConcordance))
     }
-
 
 
     // Check merged RDD has correct numbers for merge mode 1
@@ -128,5 +127,26 @@ class MergeSuite extends SparkSuite {
 
     mergedResult5.foreach { case ((v, s), gt) => assert(mergeTruth5.get((v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt, s)).get == gt) }
 
+
+    // Check merged RDD when only some samples overlap
+    val trueSampleConc2: Map[Int, Option[Double]] = Map(0 -> Some(0.66666), 1 -> Some(1.000), 2 -> Some(0.75))
+    val trueVariantConc2: Map[String, Option[Double]] = Map("1:0:A:T" -> Some(1.0), "1:1:A:T" -> Some(1.0), "1:2:A:T" -> Some(1.0), "1:3:A:T" -> None, "1:4:A:T" -> Some(0.3333))
+    val rdd3 = TestRDDBuilder.buildRDD(5, 5, sc, "tuple", gtArray = Some(gt1), sampleIds=Some(Array("s1", "s2", "s3", "s4", "s5")))
+    val rdd4 = TestRDDBuilder.buildRDD(5, 5, sc, "tuple", gtArray = Some(gt2), sampleIds=Some(Array("s6", "s7", "s3", "s2", "s1")))
+
+    val mergedVds2 = Merge(rdd3, rdd4, sc)
+
+    // Check sample concordance
+    val sampleConcordance2 = mergedVds2.sampleConcordance.collectAsMap()
+    sampleConcordance2.foreach { case (s, ct) =>
+      assert(optionCloseEnough(trueSampleConc2.get(s).get, ct.calcConcordance))
+    }
+
+
+    // Check variant concordance
+    val variantConcordance2 = mergedVds2.variantConcordance.collectAsMap()
+    variantConcordance2.foreach { case (v, ct) =>
+      assert(optionCloseEnough(trueVariantConc2.get(v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt).get, ct.calcConcordance))
+    }
   }
 }

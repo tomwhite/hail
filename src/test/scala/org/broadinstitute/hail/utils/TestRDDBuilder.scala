@@ -80,7 +80,8 @@ object TestRDDBuilder {
   def buildRDD(nSamples: Int, nVariants: Int, sc: SparkContext, vsmtype: String,
     gqArray: Option[Array[Array[Int]]] = None,
     dpArray: Option[Array[Array[Int]]] = None,
-    gtArray: Option[Array[Array[Int]]] = None): VariantDataset = {
+    gtArray: Option[Array[Array[Int]]] = None,
+    sampleIds: Option[Array[String]] = None): VariantDataset = {
     /* Takes the arguments:
     nSamples(Int) -- number of samples (columns) to produce in VCF
     nVariants(Int) -- number of variants(rows) to produce in VCF
@@ -92,7 +93,10 @@ object TestRDDBuilder {
 
     // create list of dummy sample IDs
 
-    val sampleList = (0 until nSamples).map(i => "Sample" + i).toArray
+    val sampleList = sampleIds match {
+      case Some(arr) => arr
+      case None => (0 until nSamples).map(i => "Sample" + i).toArray
+    }
 
     // create array of (Variant, gq[Int], dp[Int])
     val variantArray = (0 until nVariants).map(i =>

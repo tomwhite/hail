@@ -1,16 +1,41 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.variant.GenotypeType._
 import org.broadinstitute.hail.variant.{VariantDataset, Genotype, Variant}
+import scala.collection.mutable.Map
 
 object Merge {
-  def apply(vds1: VariantDataset, vds2: VariantDataset): Merge = {
-    new Merge(vds1.fullOuterJoin(vds2.expand()))
+  def apply(vds1: VariantDataset, vds2: VariantDataset, sc: SparkContext): Merge = {
+    val ids1 = vds1.sampleIds.zipWithIndex.toMap
+    val idConv: scala.collection.mutable.Map[Int, Int] = scala.collection.mutable.Map[Int, Int]()
+    var index = ids1.size
+    val masterSampleIds: scala.collection.mutable.Map[Int, String] = scala.collection.mutable.Map[Int,String]()
+
+    for ((s,i) <- ids1) {
+      masterSampleIds(i) = s
+    }
+
+    for ((s, i) <- vds2.sampleIds.zipWithIndex) {
+      ids1.lift(s) match {
+        case Some(mapping) =>
+          idConv += i -> mapping
+        case None =>
+          idConv += i -> index
+          masterSampleIds += index -> s
+          index += 1
+      }
+    }
+
+
+    new Merge(vds1.fullOuterJoin(vds2
+      .expand()
+      .map{case (v,s,g) => (v,idConv(s), g)}),masterSampleIds)
   }
 }
 
-case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))]) {
+case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))],sampleIds:Map[Int,String]) {
 
   val possibleTypes:Array[Option[GenotypeType]] = Array(Some(HomRef), Some(Het), Some(HomVar), Some(NoCall), None)
   val typeNames = Map(Some(HomRef) -> "HomRef",Some(Het) -> "Het", Some(HomVar) -> "HomVar",Some(NoCall) -> "NoCall", None -> "None")
@@ -87,19 +112,21 @@ case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]
 
   def sampleConcordance: RDD[(Int,ConcordanceTable)] = {
     mergeRDD
+      .filter{case ((v,s),(gt1,gt2)) => calledInBoth((gt1,gt2))}
       .map { case ((v,s),(gt1,gt2)) => (s,(gt1,gt2)) }
       .aggregateByKey[ConcordanceTable](new ConcordanceTable)((comb,gtp) => comb.addCount(gtp._1,gtp._2),(comb1,comb2) => comb1.merge(comb2))
   }
 
   def variantConcordance: RDD[(Variant,ConcordanceTable)] = {
     mergeRDD
+      .filter{case ((v,s),(gt1,gt2)) => calledInBoth((gt1,gt2))}
       .map { case ((v,s),(gt1,gt2)) => (v,(gt1,gt2)) }
       .aggregateByKey[ConcordanceTable](new ConcordanceTable)((comb,gtp) => comb.addCount(gtp._1,gtp._2),(comb1,comb2) => comb1.merge(comb2))
   }
 
   def writeSampleConcordance(sep:String="\t"): String = {
     val header = s"ID${sep}nVar${sep}Concordance${sep}%s".format(labels.mkString(sep))
-    val concordances = sampleConcordance.map{case(s,ct) => s + sep + ct.writeConcordance(sep)}.collect()
+    val concordances = sampleConcordance.map{case(s,ct) => sampleIds.get(s).get + sep + ct.writeConcordance(sep)}.collect()
     header + "\n" + concordances.mkString("\n")
   }
 
@@ -126,6 +153,4 @@ case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]
       .mkString("\n")
   }
 }
-
-
 

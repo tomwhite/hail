@@ -53,8 +53,15 @@ class ConcordanceTable extends Serializable {
     else
       false
 
+  def isNone(k:(Option[GenotypeType],Option[GenotypeType])): Boolean = {
+    if (k._1 == None || k._2 == None)
+      true
+    else
+      false
+  }
+
   // the reason I made these as methods rather than values is because the table is mutable
-  def numMismatches = table.filterKeys(!isGenotypesEqual(_)).filterKeys(!isNoCall(_)).values.sum
+  def numMismatches = table.filterKeys(!isNone(_)).filterKeys(!isGenotypesEqual(_)).filterKeys(!isNoCall(_)).values.sum
   def numMatches = table.filterKeys(isGenotypesEqual).filterKeys(!isNoCall(_)).values.sum
   def numNoCall = table.filterKeys(isNoCall).values.sum
   def numTotal = table.values.sum
@@ -76,7 +83,11 @@ class ConcordanceTable extends Serializable {
 
   def writeConcordance(sep:String="\t"): String = {
     val data = for (i <- possibleTypes; j <- possibleTypes) yield table.get((i,j)).getOrElse("NA")
-    s"%s$sep%.2f$sep%s".format(numTotal,calcConcordance,data.mkString(sep))
+    val conc = calcConcordance
+    conc match {
+      case Some(x) => s"%s$sep%.2f$sep%s".format(numTotal,conc.get,data.mkString(sep))
+      case None => s"%s$sep%s$sep%s".format(numTotal,"NaN",data.mkString(sep))
+    }
   }
 
   override def toString: String = {

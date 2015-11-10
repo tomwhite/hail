@@ -65,6 +65,7 @@ object Main {
       Import,
       LinearRegressionCommand,
       MendelErrorsCommand,
+      MergeCommand,
       PCA,
       Read,
       Repartition,
