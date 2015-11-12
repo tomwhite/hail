@@ -130,15 +130,15 @@ case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]
   def writeSampleConcordance(filename:String,sep:String="\t"): String = {
     val header = s"ID${sep}nVar${sep}Concordance${sep}%s".format(labels.mkString(sep))
     val lines = sampleConcordance.map{case(s,ct) => sampleIds.get(s).get + sep + ct.writeConcordance(sep)}.collect()
-    //header + "\n" + concordances.mkString("\n")
-    writeTable(filename, sc.hadoopConfiguration, lines, header)
+    header + "\n" + lines.mkString("\n")
+    //writeTable(filename, sc.hadoopConfiguration, lines, header)
   }
 
-  def writeVariantConcordance(filename:String,sep:String="\t"): String = {
+  def writeVariantConcordance(filename:String,sep:String="\t"):String = {
     val header = s"Variant${sep}nSamples${sep}Concordance${sep}%s".format(labels.mkString(sep))
     val lines = variantConcordance.map{case(v,ct) => variantString(v) + sep + ct.writeConcordance(sep)}.collect()
-    //header + "\n" + concordances.mkString("\n")
-    writeTable(filename, sc.hadoopConfiguration, lines, header)
+    header + "\n" + lines.mkString("\n")
+    //writeTable(filename, sc.hadoopConfiguration, lines, header)
   }
 
   def pretty(nrow:Int=10): String = {

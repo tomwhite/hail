@@ -483,7 +483,7 @@ object Utils {
 
 class MultiArray2[T](val n1: Int,
   val n2: Int,
-  a: Array[T]) extends Serializable {
+  a: Array[T]) {
   require(a.length == n1*n2)
 
   def indices: Iterable[(Int,Int)] = for (i <- 0 until n1; j <- 0 until n2) yield (i, j)
