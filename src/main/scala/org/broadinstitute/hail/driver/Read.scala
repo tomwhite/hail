@@ -19,6 +19,10 @@ object Read extends Command {
     val input = options.input
 
     val newVDS = VariantSampleMatrix.read(state.sqlContext, input)
-    state.copy(vds = newVDS)
+
+    if (state.vds == null)
+      state.copy(vds = newVDS)
+    else
+      state.copy(vds2 = newVDS)
   }
 }

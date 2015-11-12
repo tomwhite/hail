@@ -155,7 +155,7 @@ object Main {
 
     val times = mutable.ArrayBuffer.empty[(String, Long)]
 
-    invocations.foldLeft(State(installDir, sc, sqlContext, null)) { case (s, args) =>
+    invocations.foldLeft(State(installDir, sc, sqlContext, null,null)) { case (s, args) =>
       println("running: " + args.mkString(" "))
       val cmdName = args(0)
       nameCommand.get(cmdName) match {

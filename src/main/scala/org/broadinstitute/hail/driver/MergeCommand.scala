@@ -20,13 +20,8 @@ object MergeCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-//    val vds = state.vds
-//    val mergedVds = Merge(vds,vds,state.sc)
-//    mergedVds.writeSampleConcordance("\t")
-//    mergedVds.writeVariantConcordance("\t")
-    println("hello merge")
-    println(options.mergeMode)
-
+    val mergedVds = Merge(state.vds, state.vds2, state.sc)
+    mergedVds.writeSampleConcordance("test.sample.concordance.txt")
     state
   }
 }

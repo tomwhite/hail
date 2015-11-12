@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.GenotypeType._
 import org.broadinstitute.hail.variant.{VariantDataset, Genotype, Variant}
 import scala.collection.mutable.Map
@@ -31,11 +32,13 @@ object Merge {
 
     new Merge(vds1.fullOuterJoin(vds2
       .expand()
-      .map{case (v,s,g) => (v,idConv(s), g)}),masterSampleIds)
+      .map{case (v,s,g) => (v,idConv(s), g)}),
+      sc,
+      masterSampleIds)
   }
 }
 
-case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))],sampleIds:Map[Int,String]) {
+case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))],sc:SparkContext,sampleIds:Map[Int,String]) {
 
   val possibleTypes:Array[Option[GenotypeType]] = Array(Some(HomRef), Some(Het), Some(HomVar), Some(NoCall), None)
   val typeNames = Map(Some(HomRef) -> "HomRef",Some(Het) -> "Het", Some(HomVar) -> "HomVar",Some(NoCall) -> "NoCall", None -> "None")
@@ -124,16 +127,18 @@ case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]
       .aggregateByKey[ConcordanceTable](new ConcordanceTable)((comb,gtp) => comb.addCount(gtp._1,gtp._2),(comb1,comb2) => comb1.merge(comb2))
   }
 
-  def writeSampleConcordance(sep:String="\t"): String = {
+  def writeSampleConcordance(filename:String,sep:String="\t"): String = {
     val header = s"ID${sep}nVar${sep}Concordance${sep}%s".format(labels.mkString(sep))
-    val concordances = sampleConcordance.map{case(s,ct) => sampleIds.get(s).get + sep + ct.writeConcordance(sep)}.collect()
-    header + "\n" + concordances.mkString("\n")
+    val lines = sampleConcordance.map{case(s,ct) => sampleIds.get(s).get + sep + ct.writeConcordance(sep)}.collect()
+    //header + "\n" + concordances.mkString("\n")
+    writeTable(filename, sc.hadoopConfiguration, lines, header)
   }
 
-  def writeVariantConcordance(sep:String="\t"): String = {
+  def writeVariantConcordance(filename:String,sep:String="\t"): String = {
     val header = s"Variant${sep}nSamples${sep}Concordance${sep}%s".format(labels.mkString(sep))
-    val concordances = variantConcordance.map{case(v,ct) => variantString(v) + sep + ct.writeConcordance(sep)}.collect()
-    header + "\n" + concordances.mkString("\n")
+    val lines = variantConcordance.map{case(v,ct) => variantString(v) + sep + ct.writeConcordance(sep)}.collect()
+    //header + "\n" + concordances.mkString("\n")
+    writeTable(filename, sc.hadoopConfiguration, lines, header)
   }
 
   def pretty(nrow:Int=10): String = {
