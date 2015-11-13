@@ -36,15 +36,6 @@ object Merge {
       sc,
       masterSampleIds)
   }
-}
-
-case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))],sc:SparkContext,sampleIds:Map[Int,String]) {
-
-  val possibleTypes:Array[Option[GenotypeType]] = Array(Some(HomRef), Some(Het), Some(HomVar), Some(NoCall), None)
-  val typeNames = Map(Some(HomRef) -> "HomRef",Some(Het) -> "Het", Some(HomVar) -> "HomVar",Some(NoCall) -> "NoCall", None -> "None")
-  val labels = for (i <- possibleTypes; j <- possibleTypes) yield typeNames.get(i).get + ":" + typeNames.get(j).get
-
-  def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
   def calledInBoth(gtpair:(Option[Genotype],Option[Genotype])) : Boolean = {
     gtpair match {
@@ -53,56 +44,69 @@ case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]
     }
   }
 
-  def applyMergeMode(mergeMode:Int):RDD[((Variant,Int),Option[Genotype])] = {
-    def getGenotypeType(gt:Option[Genotype]):GenotypeType = {
-      gt match {
-        case Some(gt) => gt.gtType
-        case None => NoCall
-      }
+  def getGenotypeType(gt:Option[Genotype]):GenotypeType = {
+    gt match {
+      case Some(gt) => gt.gtType
+      case None => NoCall
     }
+  }
 
-    def mergeRule1(gt1:Option[Genotype],gt2:Option[Genotype]): Option[Genotype] = {
-      val gt1t = getGenotypeType(gt1)
-      val gt2t = getGenotypeType(gt2)
+  def mergeRule1(gt1:Option[Genotype],gt2:Option[Genotype]): Option[Genotype] = {
+    val gt1t = getGenotypeType(gt1)
+    val gt2t = getGenotypeType(gt2)
 
-      if (gt1t == gt2t)
-        gt1
-      else if (gt1t == NoCall)
-        gt2
-      else if (gt2t == NoCall)
-        gt1
-      else
-        Some(Genotype(-1,(0,0),0,(0,0,0))) //output if two genotypes conflict
-    }
-
-    def mergeRule2(gt1:Option[Genotype],gt2:Option[Genotype]):Option[Genotype] = {
-      val gt1t = getGenotypeType(gt1)
-      val gt2t = getGenotypeType(gt2)
-
-      if (gt1t != NoCall)
-        gt1
-      else
-        gt2
-    }
-
-    def mergeRule3(gt1:Option[Genotype],gt2:Option[Genotype]):Option[Genotype] = {
-      val gt1t = getGenotypeType(gt1)
-      val gt2t = getGenotypeType(gt2)
-
-      if (gt2t != NoCall)
-        gt2
-      else
-        gt1
-    }
-
-    def mergeRule4(gt1:Option[Genotype],gt2:Option[Genotype]):Option[Genotype] = {
+    if (gt1t == gt2t)
       gt1
-    }
-
-    def mergeRule5(gt1:Option[Genotype],gt2:Option[Genotype]):Option[Genotype] = {
+    else if (gt1t == NoCall)
       gt2
-    }
+    else if (gt2t == NoCall)
+      gt1
+    else
+      Some(Genotype(-1,(0,0),0,(0,0,0))) //output if two genotypes conflict
+  }
 
+  def mergeRule2(gt1:Option[Genotype],gt2:Option[Genotype]):Option[Genotype] = {
+    val gt1t = getGenotypeType(gt1)
+    val gt2t = getGenotypeType(gt2)
+
+    if (gt1t != NoCall)
+      gt1
+    else
+      gt2
+  }
+
+  def mergeRule3(gt1:Option[Genotype],gt2:Option[Genotype]):Option[Genotype] = {
+    val gt1t = getGenotypeType(gt1)
+    val gt2t = getGenotypeType(gt2)
+
+    if (gt2t != NoCall)
+      gt2
+    else
+      gt1
+  }
+
+  def mergeRule4(gt1:Option[Genotype],gt2:Option[Genotype]):Option[Genotype] = {
+    gt1
+  }
+
+  def mergeRule5(gt1:Option[Genotype],gt2:Option[Genotype]):Option[Genotype] = {
+    gt2
+  }
+
+}
+
+class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))],sc:SparkContext,sampleIds:Map[Int,String]) {
+  import Merge._
+
+  val possibleTypes:Array[Option[GenotypeType]] = Array(Some(HomRef), Some(Het), Some(HomVar), Some(NoCall), None)
+  val typeNames = Map(Some(HomRef) -> "HomRef",Some(Het) -> "Het", Some(HomVar) -> "HomVar",Some(NoCall) -> "NoCall", None -> "None")
+  val labels = for (i <- possibleTypes; j <- possibleTypes) yield typeNames.get(i).get + ":" + typeNames.get(j).get
+
+  def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
+
+
+
+  def applyMergeMode(mergeMode:Int):RDD[((Variant,Int),Option[Genotype])] = {
     mergeMode match {
       case 1 => mergeRDD.mapValues { case (gt1, gt2) => mergeRule1(gt1, gt2) } // default -- consensus merging
       case 2 => mergeRDD.mapValues { case (gt1,gt2) => mergeRule2(gt1,gt2)} // only use gt2 if gt1 == no call
@@ -129,7 +133,7 @@ case class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]
 
   def writeSampleConcordance(filename:String,sep:String="\t"): String = {
     val header = s"ID${sep}nVar${sep}Concordance${sep}%s".format(labels.mkString(sep))
-    val lines = sampleConcordance.map{case(s,ct) => sampleIds.get(s).get + sep + ct.writeConcordance(sep)}.collect()
+    val lines = sampleConcordance.map{case(s,ct) => s + sep + ct.writeConcordance(sep)}.collect()
     header + "\n" + lines.mkString("\n")
     //writeTable(filename, sc.hadoopConfiguration, lines, header)
   }

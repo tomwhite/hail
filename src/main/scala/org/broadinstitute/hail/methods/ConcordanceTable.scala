@@ -10,7 +10,7 @@ class ConcordanceTable extends Serializable {
 
   val table = MultiArray2.fill[Long](5,5)(0)
 
-  private def keyIndex(g: Option[Genotype]) = g.map(_.gtType) match {
+  private def keyIndex(g: Option[Genotype]) = (g.map(_.gtType): @unchecked) match {
     case Some(HomRef) => 0
     case Some(Het) => 1
     case Some(HomVar) => 2

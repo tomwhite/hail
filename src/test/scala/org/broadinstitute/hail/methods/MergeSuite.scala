@@ -7,7 +7,7 @@ import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
 
 class MergeSuite extends SparkSuite {
-  @Test def test() = {
+  @Test def test() {
 
     val gt1 = Array(
       Array(0, 1, 2, 1, 0),
@@ -36,6 +36,7 @@ class MergeSuite extends SparkSuite {
       assert(optionCloseEnough(trueSampleConc.get(s).get, ct.calcConcordance))
     }
 
+    mergedVds.writeSampleConcordance("test.txt",sep="\t")
 
     // Check variant concordance
     val variantConcordance = mergedVds.variantConcordance.collectAsMap()
