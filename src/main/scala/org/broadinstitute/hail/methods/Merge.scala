@@ -9,14 +9,17 @@ import scala.collection.mutable.Map
 
 object Merge {
   def apply(vds1: VariantDataset, vds2: VariantDataset, sc: SparkContext): Merge = {
-    val ids1 = vds1.sampleIds.zipWithIndex.toMap
-    val idConv: scala.collection.mutable.Map[Int, Int] = scala.collection.mutable.Map[Int, Int]()
-    var index = ids1.size
-    val masterSampleIds: scala.collection.mutable.Map[Int, String] = scala.collection.mutable.Map[Int,String]()
+    val nSamples = vds1.nSamples + vds2.nSamples
+    val masterSampleIds = new Array[String](nSamples)
 
-    for ((s,i) <- ids1) {
+
+    val ids1 = vds1.sampleIds.zipWithIndex.toMap
+    val idConv = scala.collection.mutable.Map[Int, Int]()
+    var index = ids1.size
+
+
+    for ((s,i) <- ids1) // if one statement, no curly braces
       masterSampleIds(i) = s
-    }
 
     for ((s, i) <- vds2.sampleIds.zipWithIndex) {
       ids1.lift(s) match {
@@ -24,18 +27,18 @@ object Merge {
           idConv += i -> mapping
         case None =>
           idConv += i -> index
-          masterSampleIds += index -> s
+          masterSampleIds(index) = s
           index += 1
       }
     }
 
-
     new Merge(vds1.fullOuterJoin(vds2
       .expand()
       .map{case (v,s,g) => (v,idConv(s), g)}),
-      sc,
       masterSampleIds)
   }
+
+  def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
   def calledInBoth(gtpair:(Option[Genotype],Option[Genotype])) : Boolean = {
     gtpair match {
@@ -95,16 +98,14 @@ object Merge {
 
 }
 
-class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))],sc:SparkContext,sampleIds:Map[Int,String]) {
+class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))],sampleIds:Array[String]) {
   import Merge._
 
+  def sc = mergeRDD.sparkContext
   val possibleTypes:Array[Option[GenotypeType]] = Array(Some(HomRef), Some(Het), Some(HomVar), Some(NoCall), None)
   val typeNames = Map(Some(HomRef) -> "HomRef",Some(Het) -> "Het", Some(HomVar) -> "HomVar",Some(NoCall) -> "NoCall", None -> "None")
   val labels = for (i <- possibleTypes; j <- possibleTypes) yield typeNames.get(i).get + ":" + typeNames.get(j).get
-
-  def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
-
-
+  val sampleIdsBc = sc.broadcast(sampleIds)
 
   def applyMergeMode(mergeMode:Int):RDD[((Variant,Int),Option[Genotype])] = {
     mergeMode match {
@@ -131,18 +132,19 @@ class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))],s
       .aggregateByKey[ConcordanceTable](new ConcordanceTable)((comb,gtp) => comb.addCount(gtp._1,gtp._2),(comb1,comb2) => comb1.merge(comb2))
   }
 
-  def writeSampleConcordance(filename:String,sep:String="\t"): String = {
-    val header = s"ID${sep}nVar${sep}Concordance${sep}%s".format(labels.mkString(sep))
-    val lines = sampleConcordance.map{case(s,ct) => s + sep + ct.writeConcordance(sep)}.collect()
-    header + "\n" + lines.mkString("\n")
-    //writeTable(filename, sc.hadoopConfiguration, lines, header)
+  def writeSampleConcordance(filename:String,sep:String="\t"): Unit = {
+    val labelStr = labels.mkString(sep)
+    val header = s"ID${sep}nVar${sep}Concordance${sep}$labelStr\n"
+    val localSampleIdConvBc = sampleIdsBc
+    val lines = sampleConcordance.map{case(s,ct) => localSampleIdConvBc.value(s) + sep + ct.writeConcordance(sep) + "\n"}.collect()
+    writeTable(filename, sc.hadoopConfiguration, lines, header)
   }
 
-  def writeVariantConcordance(filename:String,sep:String="\t"):String = {
-    val header = s"Variant${sep}nSamples${sep}Concordance${sep}%s".format(labels.mkString(sep))
-    val lines = variantConcordance.map{case(v,ct) => variantString(v) + sep + ct.writeConcordance(sep)}.collect()
-    header + "\n" + lines.mkString("\n")
-    //writeTable(filename, sc.hadoopConfiguration, lines, header)
+  def writeVariantConcordance(filename:String,sep:String="\t"):Unit = {
+    val labelStr = labels.mkString(sep)
+    val header = s"Variant${sep}nSamples${sep}Concordance${sep}$labelStr\n"
+    val lines = variantConcordance.map{case(v,ct) => variantString(v) + sep + ct.writeConcordance(sep) + "\n"}.collect()
+    writeTable(filename, sc.hadoopConfiguration, lines, header)
   }
 
   def pretty(nrow:Int=10): String = {
@@ -153,7 +155,8 @@ class Merge(mergeRDD: RDD[((Variant,Int),(Option[Genotype],Option[Genotype]))],s
           case None => "-/-"
         }
       }
-      "%s\t%s\t%s\t%s".format(variantString(v), sampleIds.get(s).get, getGenotypeString(gt1,v), getGenotypeString(gt2,v))
+      val localSampleIdConvBc = sampleIdsBc
+      "%s\t%s\t%s\t%s".format(variantString(v), localSampleIdConvBc.value(s), getGenotypeString(gt1,v), getGenotypeString(gt2,v))
     }
 
     mergeRDD

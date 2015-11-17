@@ -59,7 +59,7 @@ class ConcordanceTable extends Serializable {
     val data = {for ((i,j) <- table.indices) yield table(i,j)}.mkString(sep)
     val conc = calcConcordance.map(x => "%.2f".format(x))
     conc match {
-      case Some(x) => s"$numTotal$sep$conc$sep$data"
+      case Some(x) => s"$numTotal$sep$x$sep$data"
       case None => s"$numTotal${sep}NaN$sep$data"
     }
   }

@@ -36,7 +36,7 @@ class MergeSuite extends SparkSuite {
       assert(optionCloseEnough(trueSampleConc.get(s).get, ct.calcConcordance))
     }
 
-    mergedVds.writeSampleConcordance("test.txt",sep="\t")
+    mergedVds.writeSampleConcordance("test2.txt",sep="\t")
 
     // Check variant concordance
     val variantConcordance = mergedVds.variantConcordance.collectAsMap()
