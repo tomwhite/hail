@@ -139,4 +139,17 @@ class TupleVSM[T](metadata: VariantMetadata,
       }
       .foldByKey(zeroValue)(combOp)
   }
+
+  def fullOuterJoin(other:RDD[(Variant,Int,T)]): RDD[((Variant,Int),(Option[T],Option[T]))] = {
+    rdd
+      .map { case (v,s,g) => ((v,s),g)}
+      .fullOuterJoin(other.map{ case (v,s,g) => ((v,s),g)})
+  }
+
+  def leftOuterJoin(other:RDD[(Variant,Int,T)]): RDD[((Variant,Int),(T,Option[T]))] = throw UnsupportedOperationException
+
+  def rightOuterJoin(other:RDD[(Variant,Int,T)]): RDD[((Variant,Int),(Option[T],T))] = throw UnsupportedOperationException
+
+  def innerJoin(other:RDD[(Variant,Int,T)]): RDD[((Variant,Int),(T,T))] = throw UnsupportedOperationException
+
 }

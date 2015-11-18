@@ -181,4 +181,20 @@ class SparkyVSM[T, S <: Iterable[T]](metadata: VariantMetadata,
     rdd
       .mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
   }
+
+  def fullOuterJoin(other:RDD[(Variant,S)]): RDD[(Variant,(Option[S],Option[S]))] = {
+    rdd.fullOuterJoin(other)
+  }
+
+  def leftOuterJoin(other:RDD[(Variant,S)]): RDD[(Variant, (S,Option[S]))] = {
+    rdd.leftOuterJoin(other)
+  }
+
+  def rightOuterJoin(other:RDD[(Variant,S)]): RDD[(Variant, (Option[S],S))] = {
+    rdd.rightOuterJoin(other)
+  }
+
+  def innerJoin(other:RDD[(Variant,S)]): RDD[(Variant, (S,S))] = {
+    rdd.join(other)
+  }
 }
