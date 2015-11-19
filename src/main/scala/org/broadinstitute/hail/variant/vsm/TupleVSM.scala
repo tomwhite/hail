@@ -140,16 +140,27 @@ class TupleVSM[T](metadata: VariantMetadata,
       .foldByKey(zeroValue)(combOp)
   }
 
-  def fullOuterJoin(other:RDD[(Variant,Int,T)]): RDD[((Variant,Int),(Option[T],Option[T]))] = {
+  def fullOuterJoin[S](other:TupleVSM[S]): RDD[((Variant,Int),(Option[T],Option[S]))] = {
     rdd
       .map { case (v,s,g) => ((v,s),g)}
-      .fullOuterJoin(other.map{ case (v,s,g) => ((v,s),g)})
+      .fullOuterJoin(other.rdd.map{ case (v,s,g) => ((v,s),g)})
   }
 
-  def leftOuterJoin(other:RDD[(Variant,Int,T)])= throw new UnsupportedOperationException
+  def leftOuterJoin[S](other:TupleVSM[S]): RDD[((Variant,Int),(T,Option[S]))] = {
+    rdd
+      .map { case (v,s,g) => ((v,s),g)}
+      .leftOuterJoin(other.rdd.map{ case (v,s,g) => ((v,s),g)})
+  }
 
-  def rightOuterJoin(other:RDD[(Variant,Int,T)]) = throw new UnsupportedOperationException
+  def rightOuterJoin[S](other:TupleVSM[S]): RDD[((Variant,Int),(Option[T],S))] = {
+    rdd
+      .map { case (v,s,g) => ((v,s),g)}
+      .rightOuterJoin(other.rdd.map{ case (v,s,g) => ((v,s),g)})
+  }
 
-  def innerJoin(other:RDD[(Variant,Int,T)]) = throw new UnsupportedOperationException
-
+  def innerJoin[S](other:TupleVSM[S]): RDD[((Variant,Int),(T,S))] = {
+    rdd
+      .map { case (v,s,g) => ((v,s),g)}
+      .join(other.rdd.map{ case (v,s,g) => ((v,s),g)})
+  }
 }

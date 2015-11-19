@@ -35,9 +35,12 @@ object SparkyVSM {
     for (i <- localSamples) yield newLocalSamples.indexOf(newSampleIds.indexOf(sampleIds(i)))
 }
 
+// if I have B <: A (class A ; class B extends A), Array[B] <: Array[A]
+// problem: This is not true for RDDs
+
 class SparkyVSM[T, S <: Iterable[T]](metadata: VariantMetadata,
   localSamples: Array[Int],
-  val rdd: RDD[(Variant, S)])
+  val rdd: RDD[(Variant, Iterable[T])])
   (implicit ttt: TypeTag[T], stt: TypeTag[S], tct: ClassTag[T], sct: ClassTag[S],
     vct: ClassTag[Variant])
   extends VariantSampleMatrix[T](metadata, localSamples) {
@@ -113,7 +116,7 @@ class SparkyVSM[T, S <: Iterable[T]](metadata: VariantMetadata,
       rdd = rdd.map { case (v, gs) =>
         (v, localSamplesBc.value.view.zip(gs.view)
           .filter { case (s, _) => p(s) }
-          .map(_._2))
+          .map(_._2).toIterable)
       })
   }
 
@@ -194,28 +197,22 @@ class SparkyVSM[T, S <: Iterable[T]](metadata: VariantMetadata,
       .mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
   }
 
-  def fullOuterJoin(other:RDD[(Variant,S)]): RDD[(Variant,(Option[S],Option[S]))] = {
-    rdd.fullOuterJoin(other)
-  }
-
-  def leftOuterJoin(other:RDD[(Variant,S)]): RDD[(Variant, (S,Option[S]))] = {
-    rdd.leftOuterJoin(other)
-  }
-
-  def rightOuterJoin(other:RDD[(Variant,S)]): RDD[(Variant, (Option[S],S))] = {
-    rdd.rightOuterJoin(other)
-  }
-
-  def innerJoin(other:VariantSampleMatrix): RDD[(Variant, (S,S))] = {
+  // returning VSM[(Option[T], Option[U])]
+  def fullOuterJoin[U](other:VariantSampleMatrix[U]) = {
+    //val sparkyOther = other.asInstanceOf[SparkyVSM[U]]
     import SparkyVSM._
     val newSampleIds = mergeSampleIds(this.sampleIds,other.sampleIds)
     val newLocalSamples = mergeLocalSamples(this.sampleIds,this.localSamples,other.sampleIds,other.localSamples)
-    rdd.reindexSamples(newSampleIds,newLocalSamples).join(other.reindexSamples(newSampleIds,newLocalSamples))
+    val newMetaData = new VariantMetadata(null,newSampleIds,null)
+    val mergeRdd = reindexSamples(newSampleIds,newLocalSamples).rdd.fullOuterJoin(other.reindexSamples(newSampleIds,newLocalSamples).rdd)
+      .map{ case (k, v) =>  }
+
+    new SparkyVSM(newMetaData, newLocalSamples, mergeRdd)
   }
 
   def reindexSamples(newSampleIds:Array[String],newLocalSamples:Array[Int]) = {
     def updateGenotypes(gs:S): Array[Option[T]] = {
-      val newGenotypes = new Array[Option[T]](newLocalSamples.length) //assuming initialized value is None
+      val newGenotypes = Array.fill[Option[T]](newLocalSamples.length)(None)
       for ((g,i) <- gs.zipWithIndex){
         val oldIndex = localSamples(i)
         val sampleId = sampleIds(oldIndex)
@@ -226,9 +223,14 @@ class SparkyVSM[T, S <: Iterable[T]](metadata: VariantMetadata,
       newGenotypes
     }
 
-
     copy(localSamples=newLocalSamples,rdd=rdd.map{case (v,s) => (v,updateGenotypes(s))})
     //where does the updated sampleIds go?
 
   }
+
+  def leftOuterJoin(other:VariantSampleMatrix) = throw new UnsupportedOperationException
+
+  def rightOuterJoin(other:VariantSampleMatrix) = throw new UnsupportedOperationException
+
+  def innerJoin[U](other:VariantSampleMatrix) = throw new UnsupportedOperationException
 }
