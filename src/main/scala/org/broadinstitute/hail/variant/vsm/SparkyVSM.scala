@@ -21,6 +21,18 @@ object SparkyVSM {
     val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
     new SparkyVSM[Genotype, GenotypeStream](metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
+
+  def mergeSampleIds(sampleIds1:Array[String],sampleIds2:Array[String]): Array[String] =
+    sampleIds1.toSet.union(sampleIds2.toSet).toArray
+
+  def mergeLocalSamples(sampleIds1:Array[String],localSamples1:Array[Int],sampleIds2:Array[String],localSamples2:Array[Int]):Array[Int] = {
+    val localIds = localSamples1.map(sampleIds1) ++ localSamples2.map(sampleIds2)
+    val mergedSampleIds = mergeSampleIds(sampleIds1, sampleIds2).zipWithIndex
+    for ((s,i) <- mergedSampleIds if localIds.contains(s)) yield i
+  }
+
+  def mergeIndexMapping(localSamples:Array[Int],sampleIds:Array[String],newSampleIds:Array[String],newLocalSamples:Array[Int]):Array[Int] =
+    for (i <- localSamples) yield newLocalSamples.indexOf(newSampleIds.indexOf(sampleIds(i)))
 }
 
 class SparkyVSM[T, S <: Iterable[T]](metadata: VariantMetadata,
@@ -194,7 +206,29 @@ class SparkyVSM[T, S <: Iterable[T]](metadata: VariantMetadata,
     rdd.rightOuterJoin(other)
   }
 
-  def innerJoin(other:RDD[(Variant,S)]): RDD[(Variant, (S,S))] = {
-    rdd.join(other)
+  def innerJoin(other:VariantSampleMatrix): RDD[(Variant, (S,S))] = {
+    import SparkyVSM._
+    val newSampleIds = mergeSampleIds(this.sampleIds,other.sampleIds)
+    val newLocalSamples = mergeLocalSamples(this.sampleIds,this.localSamples,other.sampleIds,other.localSamples)
+    rdd.reindexSamples(newSampleIds,newLocalSamples).join(other.reindexSamples(newSampleIds,newLocalSamples))
+  }
+
+  def reindexSamples(newSampleIds:Array[String],newLocalSamples:Array[Int]) = {
+    def updateGenotypes(gs:S): Array[Option[T]] = {
+      val newGenotypes = new Array[Option[T]](newLocalSamples.length) //assuming initialized value is None
+      for ((g,i) <- gs.zipWithIndex){
+        val oldIndex = localSamples(i)
+        val sampleId = sampleIds(oldIndex)
+        val newSampleInteger = newSampleIds.indexOf(sampleId)
+        val newIndex = newLocalSamples.indexOf(newSampleInteger)
+        newGenotypes(newIndex) = Some(g)
+      }
+      newGenotypes
+    }
+
+
+    copy(localSamples=newLocalSamples,rdd=rdd.map{case (v,s) => (v,updateGenotypes(s))})
+    //where does the updated sampleIds go?
+
   }
 }

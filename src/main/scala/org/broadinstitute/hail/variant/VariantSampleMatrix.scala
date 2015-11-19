@@ -94,12 +94,12 @@ abstract class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)]
 
-  def fullOuterJoin(other: RDD[(Variant,Int,T)]): RDD[((Variant,Int),(Option[T],Option[T]))]
+  def fullOuterJoin(other: VariantSampleMatrix[T]): RDD[((Variant,Int),(Option[T],Option[T]))]
 
-  def leftOuterJoin(other: RDD[(Variant,Int,T)]): RDD[((Variant,Int),(T,Option[T]))]
+  def leftOuterJoin(other: VariantSampleMatrix[T]): RDD[((Variant,Int),(T,Option[T]))]
 
-  def rightOuterJoin(other: RDD[(Variant,Int,T)]): RDD[((Variant,Int),(Option[T],T))]
+  def rightOuterJoin(other: VariantSampleMatrix[T]): RDD[((Variant,Int),(Option[T],T))]
 
-  def innerJoin(other: RDD[(Variant,Int,T)]): RDD[((Variant,Int),(T,T))]
+  def innerJoin(other: VariantSampleMatrix[T]): RDD[((Variant,Int),(T,T))]
 
 }
