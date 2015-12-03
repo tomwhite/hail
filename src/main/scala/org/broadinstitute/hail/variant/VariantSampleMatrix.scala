@@ -205,6 +205,56 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
 
+  def reindexSamples(mergedLocalSamples:Array[Int],mergedSampleIds:Array[String]):VariantSampleMatrix[Option[T]] = {
+    val indexMapping: Array[Int] = for (i <- localSamples) yield mergedLocalSamples.indexOf(mergedSampleIds.indexOf(sampleIds(i)))
+    new VariantSampleMatrix(new VariantMetadata(metadata.contigLength, mergedSampleIds, metadata.vcfHeader),
+      mergedLocalSamples, rdd.map { case (v, s) =>
+        val newGenotypes = Array.fill[Option[T]](mergedLocalSamples.length)(None)
+        for ((g, i) <- s.zipWithIndex) {
+          val newIndex = indexMapping.indexOf(i)
+          newGenotypes(newIndex) = Some(g)
+        }
+        (v, newGenotypes.toIterable)
+      }
+    )
+  }
+
+
+  def fullOuterJoin[S](other:VariantSampleMatrix[S]): RDD[(Variant,(Option[Iterable[Option[T]]],Option[Iterable[Option[S]]]))] = {
+    def mergedSampleIds: Array[String] = this.sampleIds.toSet.union(other.sampleIds.toSet).toArray
+    def mergedLocalSamples: Array[Int] = {
+      val localIds = this.localSamples.map(this.sampleIds) ++ other.localSamples.map(other.sampleIds)
+      for ((s,i) <- mergedSampleIds.zipWithIndex if localIds.contains(s)) yield i
+    }
+    this.reindexSamples(mergedLocalSamples,mergedSampleIds).rdd.fullOuterJoin(other.reindexSamples(mergedLocalSamples, mergedSampleIds).rdd)
+  }
+
+  def leftOuterJoin[S](other:VariantSampleMatrix[S]): RDD[(Variant,(Iterable[Option[T]],Option[Iterable[Option[S]]]))] = {
+    def mergedSampleIds: Array[String] = this.sampleIds
+    def mergedLocalSamples: Array[Int] = {
+      val localIds = this.localSamples.map(this.sampleIds) ++ other.localSamples.map(other.sampleIds)
+      for ((s,i) <- mergedSampleIds.zipWithIndex if localIds.contains(s)) yield i
+    }
+    this.reindexSamples(mergedLocalSamples,mergedSampleIds).rdd.leftOuterJoin(other.reindexSamples(mergedLocalSamples, mergedSampleIds).rdd)
+  }
+
+  def rightOuterJoin[S](other:VariantSampleMatrix[S]): RDD[(Variant,(Option[Iterable[Option[T]]],Iterable[Option[S]]))] = {
+    def mergedSampleIds: Array[String] = other.sampleIds
+    def mergedLocalSamples: Array[Int] = {
+      val localIds = this.localSamples.map(this.sampleIds) ++ other.localSamples.map(other.sampleIds)
+      for ((s,i) <- mergedSampleIds.zipWithIndex if localIds.contains(s)) yield i
+    }
+    this.reindexSamples(mergedLocalSamples,mergedSampleIds).rdd.rightOuterJoin(other.reindexSamples(mergedLocalSamples,mergedSampleIds).rdd)
+  }
+
+  def innerJoin[S](other:VariantSampleMatrix[S]): RDD[(Variant,(Iterable[Option[T]],Iterable[Option[S]]))] = {
+    def mergedSampleIds: Array[String] = this.sampleIds.toSet.intersect(other.sampleIds.toSet).toArray
+    def mergedLocalSamples: Array[Int] = {
+      val localIds = this.localSamples.map(this.sampleIds) ++ other.localSamples.map(other.sampleIds)
+      for ((s,i) <- mergedSampleIds.zipWithIndex if localIds.contains(s)) yield i
+    }
+    this.reindexSamples(mergedLocalSamples,mergedSampleIds).rdd.join(other.reindexSamples(mergedLocalSamples,mergedSampleIds).rdd)
+  }
 }
 
 // FIXME AnyVal Scala 2.11
