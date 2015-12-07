@@ -24,13 +24,21 @@ class JoinSuite extends SparkSuite {
     val vsm1 = TestRDDBuilder.buildRDD(5, 5, sc, gtArray = Some(gt1),sampleIds=Some(Array("s1", "s2", "s3", "s4", "s5")))
     val vsm2 = TestRDDBuilder.buildRDD(5, 3, sc, gtArray = Some(gt2),sampleIds=Some(Array("foo", "s7", "beet", "pug", "s3")))
 
-    val (vsm1Prime,vsm2Prime) = vsm1.reindexSamples(vsm2)
-    val foj = vsm1Prime.fullOuterJoin(vsm2Prime)
+    val (vsm1PrimeInner,vsm2PrimeInner) = vsm1.reindexSamplesInnerJoin(vsm2)
+    val (vsm1PrimeOuter,vsm2PrimeOuter) = vsm1.reindexSamplesOuterJoin(vsm2)
+    val (vsm1PrimeLeft,vsm2PrimeLeft) = vsm1.reindexSamplesLeftJoin(vsm2)
+    val (vsm1PrimeRight,vsm2PrimeRight) = vsm1.reindexSamplesRightJoin(vsm2)
 
-   /* val loj = vsm1.leftOuterJoin(vsm2)
+    val x = Array((vsm1PrimeInner,vsm2PrimeInner),
+      (vsm1PrimeOuter,vsm2PrimeOuter),
+      (vsm1PrimeLeft,vsm2PrimeLeft),
+      (vsm1PrimeRight,vsm2PrimeRight))
 
-    val roj = vsm1.rightOuterJoin(vsm2)
-
-    val ij = vsm1.innerJoin(vsm2)*/
+    for ((a,b) <- x) {
+      val foj = a.fullOuterJoin(b)
+      val loj = a.leftOuterJoin(b)
+      val roj = a.rightOuterJoin(b)
+      val ij = a.innerJoin(b)
+    }
   }
 }

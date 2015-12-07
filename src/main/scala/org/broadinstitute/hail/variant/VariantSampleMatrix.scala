@@ -7,7 +7,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
 import scala.language.implicitConversions
-
 import scala.reflect.ClassTag
 
 object VariantSampleMatrix {
@@ -218,7 +217,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     rdd.mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
 
 
- /* private def mergeLocalSamples[S](other:VariantSampleMatrix[S],mergedSampleIds:Array[String])
+  private def mergeLocalSamples[S](other:VariantSampleMatrix[S],mergedSampleIds:Array[String])
                                   (implicit sct: ClassTag[S]): Array[Int] = {
     val localIds = this.localSamples.map(this.sampleIds) ++ other.localSamples.map(other.sampleIds)
     for ((s,i) <- mergedSampleIds.zipWithIndex if localIds.contains(s)) yield i
@@ -243,65 +242,33 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def reindexSamplesInnerJoin[S](other:VariantSampleMatrix[S])
-                                (implicit sct: ClassTag[S]) = throw new UnsupportedOperationException
+                                (implicit sct: ClassTag[S]):(VariantSampleMatrix[Option[T]],VariantSampleMatrix[Option[S]]) = {
+    val mergedSampleIds = this.sampleIds.intersect(other.sampleIds)
+    val mergedLocalSamples = mergeLocalSamples(other,mergedSampleIds)
+    (this.reindexSamples(mergedSampleIds,mergedLocalSamples),other.reindexSamples(mergedSampleIds,mergedLocalSamples))
+  }
 
   def reindexSamplesOuterJoin[S](other:VariantSampleMatrix[S])
-                                (implicit sct: ClassTag[S]) = throw new UnsupportedOperationException
+                                (implicit sct: ClassTag[S]):(VariantSampleMatrix[Option[T]],VariantSampleMatrix[Option[S]]) = {
+    val mergedSampleIds = this.sampleIds.union(other.sampleIds)
+    val mergedLocalSamples = mergeLocalSamples(other,mergedSampleIds)
+    (this.reindexSamples(mergedSampleIds,mergedLocalSamples),other.reindexSamples(mergedSampleIds,mergedLocalSamples))
+  }
 
   def reindexSamplesLeftJoin[S](other:VariantSampleMatrix[S])
-                               (implicit sct: ClassTag[S]) = throw new UnsupportedOperationException
+                               (implicit sct: ClassTag[S]): (VariantSampleMatrix[Option[T]],VariantSampleMatrix[Option[S]]) = {
+    val mergedSampleIds = this.sampleIds
+    val mergedLocalSamples = mergeLocalSamples(other,mergedSampleIds)
+    (this.reindexSamples(mergedSampleIds,mergedLocalSamples),other.reindexSamples(mergedSampleIds,mergedLocalSamples))
+  }
 
   def reindexSamplesRightJoin[S](other:VariantSampleMatrix[S])
-                                (implicit sct: ClassTag[S]) = {
+                                (implicit sct: ClassTag[S]):(VariantSampleMatrix[Option[T]],VariantSampleMatrix[Option[S]]) = {
     val mergedSampleIds = other.sampleIds
     val mergedLocalSamples = mergeLocalSamples(other,mergedSampleIds)
-    val thisPrime: VariantSampleMatrix[Option[T]] = this.reindexSamples(mergedSampleIds,mergedLocalSamples)
-    val otherPrime: VariantSampleMatrix[Option[S]] = other.reindexSamples(mergedSampleIds,mergedLocalSamples)
+    (this.reindexSamples(mergedSampleIds,mergedLocalSamples),other.reindexSamples(mergedSampleIds,mergedLocalSamples))
   }
-*/
 
-  def reindexSamples[S](other:VariantSampleMatrix[S],joinType:String="inner")
-     (implicit sct: ClassTag[S]):(VariantSampleMatrix[Option[T]],VariantSampleMatrix[Option[S]]) = {
-
-    val mergedSampleIds: Array[String] = joinType match {
-      case "inner" => this.sampleIds.toSet.intersect(other.sampleIds.toSet).toArray
-      case "outer" => this.sampleIds.toSet.union(other.sampleIds.toSet).toArray
-      case "left" => this.sampleIds
-      case "right" => other.sampleIds
-      case _ => throw new UnsupportedOperationException
-    }
-
-    val mergedLocalSamples: Array[Int] = {
-      val localIds = this.localSamples.map(this.sampleIds) ++ other.localSamples.map(other.sampleIds)
-      for ((s,i) <- mergedSampleIds.zipWithIndex if localIds.contains(s)) yield i
-    }
-
-    val indexMapping: Array[Int] = for (i <- localSamples) yield mergedLocalSamples.indexOf(mergedSampleIds.indexOf(sampleIds(i)))
-
-    val thisPrime = new VariantSampleMatrix[Option[T]](new VariantMetadata(this.metadata.contigLength, mergedSampleIds, this.metadata.vcfHeader),
-      mergedLocalSamples, rdd.map { case (v, s) =>
-        val newGenotypes = Array.fill[Option[T]](mergedLocalSamples.length)(None)
-        for ((g, i) <- s.zipWithIndex) {
-          val newIndex = indexMapping(i)
-          if (newIndex != -1)
-            newGenotypes(newIndex) = Some(g)
-        }
-        (v, newGenotypes.toIterable)
-      })
-
-    val otherPrime = new VariantSampleMatrix[Option[S]](new VariantMetadata(other.metadata.contigLength, mergedSampleIds, other.metadata.vcfHeader),
-      mergedLocalSamples, other.rdd.map { case (v, s) =>
-        val newGenotypes = Array.fill[Option[S]](mergedLocalSamples.length)(None)
-        for ((g, i) <- s.zipWithIndex) {
-          val newIndex = indexMapping(i)
-          if (newIndex != -1)
-            newGenotypes(newIndex) = Some(g)
-        }
-        (v, newGenotypes.toIterable)
-      })
-
-    (thisPrime, otherPrime)
-  }
 
   // Variant Joins
 
@@ -321,33 +288,40 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def leftOuterJoin[S](other:VariantSampleMatrix[S])(implicit sct: ClassTag[S]): VariantSampleMatrix[(Option[T],Option[S])] = {
     import VariantSampleMatrix._
     require(this.sampleIds.sameElements(other.sampleIds) && this.localSamples.sameElements(other.localSamples))
-    val nSamplesBc = sparkContext.broadcast(this.nLocalSamples)
+    val nSamplesLocal = this.nLocalSamples
+    val tctLocal = tct
+    val sctLocal = sct
     new VariantSampleMatrix[(Option[T],Option[S])](new VariantMetadata(this.metadata.contigLength,this.sampleIds,this.metadata.vcfHeader),
       this.localSamples,
       this.rdd.leftOuterJoin(other.rdd)
-        .map{case (v,(a,b)) => (v,joinGenotypes(Some(a),b,nSamplesBc.value))}
+        .map{case (v,(a,b)) => (v,joinGenotypes(Some(a),b,nSamplesLocal)(tctLocal,sctLocal))}
     )
   }
 
   def rightOuterJoin[S](other:VariantSampleMatrix[S])(implicit sct: ClassTag[S]): VariantSampleMatrix[(Option[T],Option[S])] = {
     import VariantSampleMatrix._
     require(this.sampleIds.sameElements(other.sampleIds) && this.localSamples.sameElements(other.localSamples))
-    val nSamplesBc = sparkContext.broadcast(this.nLocalSamples)
+    val nSamplesLocal = this.nLocalSamples
+    val tctLocal = tct
+    val sctLocal = sct
     new VariantSampleMatrix[(Option[T],Option[S])](new VariantMetadata(this.metadata.contigLength,this.sampleIds,this.metadata.vcfHeader),
       this.localSamples,
       this.rdd.rightOuterJoin(other.rdd)
-        .map{case (v,(a,b)) => (v,joinGenotypes(a,Some(b),nSamplesBc.value))}
+        .map{case (v,(a,b)) => (v,joinGenotypes(a,Some(b),nSamplesLocal)(tctLocal,sctLocal))}
     )
   }
 
   def innerJoin[S](other:VariantSampleMatrix[S])(implicit sct: ClassTag[S]): VariantSampleMatrix[(Option[T],Option[S])] = {
     import VariantSampleMatrix._
     require(this.sampleIds.sameElements(other.sampleIds) && this.localSamples.sameElements(other.localSamples))
+    val nSamplesLocal = this.nLocalSamples
+    val tctLocal = tct
+    val sctLocal = sct
     val nSamplesBc = sparkContext.broadcast(this.nLocalSamples)
     new VariantSampleMatrix[(Option[T],Option[S])](new VariantMetadata(this.metadata.contigLength,this.sampleIds,this.metadata.vcfHeader),
       this.localSamples,
       this.rdd.join(other.rdd)
-        .map{case (v,(a,b)) => (v,joinGenotypes(Some(a),Some(b),nSamplesBc.value))}
+        .map{case (v,(a,b)) => (v,joinGenotypes(Some(a),Some(b),nSamplesLocal)(tctLocal,sctLocal))}
     )
   }
 }
