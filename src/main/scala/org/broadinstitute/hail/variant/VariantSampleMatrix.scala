@@ -27,7 +27,8 @@ object VariantSampleMatrix {
     new VariantSampleMatrix[Genotype](metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
 
-  private def joinGenotypes[T,S](a:Option[Iterable[T]],b:Option[Iterable[S]],nSamples:Int)(implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
+  private def joinGenotypes[T,S](a:Option[Iterable[T]],b:Option[Iterable[S]],nSamples:Int)
+                                (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     require(nSamples >= 0)
     val aPrime: Iterable[Option[T]] = a match {
       case Some(x) => x.map(t => Some(t))
@@ -41,7 +42,8 @@ object VariantSampleMatrix {
     aPrime.zip(bPrime)
   }
 
-  private def joinGenotypes[T,S](a:Iterable[T],b:Option[Iterable[S]],nSamples:Int)(implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(T,Option[S])] = {
+  private def joinGenotypes[T,S](a:Iterable[T],b:Option[Iterable[S]],nSamples:Int)
+                                (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(T,Option[S])] = {
     require(nSamples >= 0)
     val bPrime: Iterable[Option[S]] = b match {
       case Some(x) => x.map(s => Some(s))
@@ -51,7 +53,8 @@ object VariantSampleMatrix {
     a.zip(bPrime)
   }
 
-  private def joinGenotypes[T,S](a:Option[Iterable[T]],b:Iterable[S],nSamples:Int)(implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],S)] = {
+  private def joinGenotypes[T,S](a:Option[Iterable[T]],b:Iterable[S],nSamples:Int)
+                                (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],S)] = {
     require(nSamples >= 0)
     val aPrime: Iterable[Option[T]] = a match {
       case Some(x) => x.map(s => Some(s))
@@ -61,7 +64,8 @@ object VariantSampleMatrix {
     aPrime.zip(b)
   }
 
-  private def joinGenotypes[T,S](a:Iterable[T],b:Iterable[S])(implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(T,S)] = {
+  private def joinGenotypes[T,S](a:Iterable[T],b:Iterable[S])
+                                (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(T,S)] = {
     require(a.size == b.size)
     a.zip(b)
   }

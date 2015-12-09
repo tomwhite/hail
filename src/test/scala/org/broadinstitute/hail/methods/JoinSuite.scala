@@ -7,29 +7,18 @@ import org.testng.annotations.Test
 class JoinSuite extends SparkSuite {
   @Test def test() {
 
-    val gt1 = Array(
-      Array(0, 1, 2, 1, 0),
-      Array(-1, 1, 0, 1, 0),
-      Array(2, 1, 1, 1, 2),
-      Array(2, -1, 1, -1, 0),
-      Array(0, 1, 2, 2, -1))
-
-    val gt2 = Array(
-      Array(2, 0, 2, 1, 0,1),
-      Array(2, -1, 0, -1, 0,1),
-      Array(0, 2, 1, -1, 2,1),
-      Array(-1, -1, -1, 0, -1,1),
-      Array(1, 1, 1, 1, 1,1))
-
-    val vsm1 = TestRDDBuilder.buildRDD(5, 1, sc,sampleIds=Some(Array("s1", "s2", "s3", "s4", "s5")))
-    val vsm2 = TestRDDBuilder.buildRDD(5, 1, sc,sampleIds=Some(Array("foo", "s7", "beet", "pug", "s3")))
+    val vsm1 = TestRDDBuilder.buildRDD(5, 3, sc,sampleIds=Some(Array("s1", "s2", "s3", "s4", "s5")))
+    val vsm2 = TestRDDBuilder.buildRDD(5, 5, sc,sampleIds=Some(Array("foo", "s7", "beet", "pug", "s3")))
+    vsm1.cache()
+    vsm2.cache()
 
     val expectedNumSamples = Map("inner" -> 1, "left" -> 5, "right" -> 5, "outer" -> 9)
-    val expectedNumVariants = Map("inner" -> 1, "left" -> 1, "right" -> 1, "outer" -> 1)
+    val expectedNumVariants = Map("inner" -> 3, "left" -> 3, "right" -> 5, "outer" -> 5)
 
-    //val joinTypes = Array("inner","left","right","outer")
-    val joinTypes = Array("inner")
+    val joinTypes = Array("inner","left","right","outer")
+
     for (sjt <- joinTypes; vjt <- joinTypes) {
+      println(s"$sjt\t$vjt")
       val nSamples = expectedNumSamples(sjt)
       val nVariants = expectedNumVariants(vjt)
 
@@ -40,6 +29,8 @@ class JoinSuite extends SparkSuite {
         case "outer" => vsm1.reindexSamplesOuterJoin(vsm2)
         case _ => throw new UnsupportedOperationException
       }
+      vsm1Prime.cache()
+      vsm2Prime.cache()
 
       val mergedVSM = vjt match {
         case "inner" => vsm1Prime.innerJoin(vsm2Prime)
@@ -48,54 +39,53 @@ class JoinSuite extends SparkSuite {
         case "outer" => vsm1Prime.fullOuterJoin(vsm2Prime)
         case _ => throw new UnsupportedOperationException
       }
+      mergedVSM.cache()
 
       assert(mergedVSM.localSamples.length == nSamples)
       assert(mergedVSM.rdd.filter{case (v,g) => g.size == nSamples}.count == nVariants)
 
       val vsm1SampleIdsLocal = vsm1.sampleIds
-      val vsm2SampleIdsLocal = vsm2.sampleIds
       val vsm1PrimeSampleIdsLocal = vsm1Prime.sampleIds
+      val vsm2SampleIdsLocal = vsm2.sampleIds
       val vsm2PrimeSampleIdsLocal = vsm2Prime.sampleIds
       val mergeSampleIdsLocal = mergedVSM.sampleIds
 
-      val mergedExpandedMap = mergedVSM.expand().map{case (v,s,g) => ((v,mergeSampleIdsLocal(s)),g)}.collectAsMap
       val vsm1ExpandedMap = vsm1.expand().map{case (v,s,g) => ((v,vsm1SampleIdsLocal(s)),g)}.collectAsMap
-      val vsm2ExpandedMap = vsm2.expand().map{case (v,s,g) => ((v,vsm2SampleIdsLocal(s)),g)}.collectAsMap
       val vsm1PrimeExpandedMap = vsm1Prime.expand().map{case (v,s,g) => ((v,vsm1PrimeSampleIdsLocal(s)),g)}.collectAsMap
+      val vsm2ExpandedMap = vsm2.expand().map{case (v,s,g) => ((v,vsm2SampleIdsLocal(s)),g)}.collectAsMap
       val vsm2PrimeExpandedMap = vsm2Prime.expand().map{case (v,s,g) => ((v,vsm2PrimeSampleIdsLocal(s)),g)}.collectAsMap
+      val mergedExpandedMap = mergedVSM.expand().map{case (v,s,g) => ((v,mergeSampleIdsLocal(s)),g)}.collectAsMap
 
-      println(mergedExpandedMap.mkString("\n"))
-      println("-----------------------------------")
-      println("-----------------------------------")
-      println(vsm1ExpandedMap.mkString("\n"))
-      println("-----------------------------------")
-      println(vsm1PrimeExpandedMap.mkString("\n"))
-      println("-----------------------------------")
-      println("-----------------------------------")
-      println(vsm2ExpandedMap.mkString("\n"))
-      println("-----------------------------------")
-      println(vsm2PrimeExpandedMap.mkString("\n"))
-      //println(mergedExpandedMap.mkString("\n"))
+      for (((v,s),gMerge) <- mergedExpandedMap) {
+        val g1t = vsm1ExpandedMap.get((v, s))
+        val g2t = vsm2ExpandedMap.get((v, s))
 
-      for (((v,s),gMerge) <- mergedExpandedMap){
-        val g1 = vsm1ExpandedMap.getOrElse((v,s),None)
-        val g2 = vsm2ExpandedMap.getOrElse((v,s),None)
-        //assert(gMerge == (g1,g2))
+        (sjt,vjt) match {
+          case ("inner","inner") => assert(gMerge == (g1t.get, g2t.get))
+          case ("inner","left") => assert(gMerge == (g1t.get, g2t))
+          case ("inner","right") => assert(gMerge == (g1t, g2t.get))
+          case ("inner","outer") => assert(gMerge == (g1t, g2t))
+          case ("left","inner") => assert(gMerge == (g1t.get, g2t))
+          case ("left","left") => assert(gMerge == (g1t.get, g2t)) // fails on Some(Some(_))
+          case ("left","right") => assert(gMerge == (g1t.get, g2t))
+          case ("left","outer") => assert(gMerge == (g1t.get, g2t))
+          case ("right","inner") => assert(gMerge == (g1t, g2t.get))
+          case ("right","left") => assert(gMerge == (g1t, g2t.get))
+          case ("right","right") => assert(gMerge == (g1t, g2t.get))
+          case ("right","outer") => assert(gMerge == (g1t, g2t.get))
+          case ("outer","inner") => assert(gMerge == (g1t, g2t))
+          case ("outer","left") => assert(gMerge == (g1t, g2t))
+          case ("outer","right") => assert(gMerge == (g1t, g2t))
+          case ("outer","outer") => assert(gMerge == (g1t, g2t))
+
+
+
+
+          //case "right" => assert(gMerge == (g1t, g2t.get))
+          //case "outer" => assert(gMerge == (g1t, g2t))
+        }
+//        assert(gMerge == (g1,g2)) // this keeps failing because I can't get rid of the options in gMerge (type = product of serializable)
       }
-
-    /*  mergedVSM.rdd.map{case (v,(a,b)) =>
-        val aOriginal = vsm1Variants.indexOf(v) match {
-          case -1 => None
-          case _ => vsm1.rdd.filter{case (v1,g1) => v1 == v}.map{case (v1,g1) => g1}.collect().(0)
-        }
-        val bOriginal = vsm2Variants.indexOf(v) match {
-          case -1 => None
-          case _ => vsm2.rdd.filter{case (v2,g2) => v2 == v}.map{case (v2,g2) => g2}.collect().(0)
-        }
-
-      }*/
-
-      // need a test to make sure genotype is same after merge
     }
   }
 }
