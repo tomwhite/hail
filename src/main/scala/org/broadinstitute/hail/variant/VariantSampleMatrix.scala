@@ -27,30 +27,67 @@ object VariantSampleMatrix {
     new VariantSampleMatrix[Genotype](metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
 
-  def superJoin[T,S,T2,S2,T3,S3,T4,S4](vsm1:VariantSampleMatrix[T], vsm2:VariantSampleMatrix[S],
-                                 sampleJoinFunction:(VariantSampleMatrix[T],VariantSampleMatrix[S]) => (VariantSampleMatrix[T2],VariantSampleMatrix[S2]),
-                                variantJoinFunction:(VariantSampleMatrix[T2],VariantSampleMatrix[S2]) => VariantSampleMatrix[(T3,S3)],
-                                 genotypeJoinFunction:(T3,S3,Int) => Iterable[(T4,S4)])
-                                (implicit t1ct: ClassTag[T], t2ct: ClassTag[T2], t3ct: ClassTag[T3],t4ct:ClassTag[T4],
-                                 s1ct:ClassTag[S], s2ct:ClassTag[S2], s3ct:ClassTag[S3], s4ct:ClassTag[T4]) : VariantSampleMatrix[(T4,S4)] = {
-    val (vsm1Prime: VariantSampleMatrix[T2], vsm2Prime: VariantSampleMatrix[S2]) = sampleJoinFunction(vsm1,vsm2)
-    require(vsm1Prime.sampleIds.sameElements(vsm2Prime.sampleIds) && vsm1Prime.localSamples.sameElements(vsm2Prime.localSamples))
-    val nSamplesLocal = vsm1Prime.nLocalSamples
-    val tct1Local = t1ct
-    val sct1Local = s1ct
-    new VariantSampleMatrix[(T4,S4)](new VariantMetadata(vsm1Prime.metadata.contigLength,vsm1Prime.sampleIds,vsm1Prime.metadata.vcfHeader),
-      vsm1Prime.localSamples,
-      variantJoinFunction(vsm1Prime,vsm2Prime).rdd.map{case (v,(a:T3,b:S3)) => (v,genotypeJoinFunction(a,b,nSamplesLocal))}
-    )
+  private def mergeLocalSamples[T,S](vsm1:VariantSampleMatrix[T], vsm2:VariantSampleMatrix[S],mergedSampleIds:Array[String])
+                                  (implicit tct:ClassTag[T], sct: ClassTag[S]): Array[Int] = {
+    val localIds = vsm1.localSamples.map(vsm1.sampleIds) ++ vsm2.localSamples.map(vsm2.sampleIds)
+    for ((s,i) <- mergedSampleIds.zipWithIndex if localIds.contains(s)) yield i
   }
 
-  private def joinGenotypesInnerInner[T,S](a:Iterable[T],b:Iterable[S])
+  def sampleInnerJoin[T,S](vsm1:VariantSampleMatrix[T], vsm2:VariantSampleMatrix[S])
+                          (implicit tct: ClassTag[T], sct: ClassTag[S]):(VariantSampleMatrix[T],VariantSampleMatrix[S]) = {
+    val mergedSampleIds = vsm1.sampleIds.toSet.intersect(vsm2.sampleIds.toSet).toArray
+    val mergedLocalSamples = mergeLocalSamples(vsm1,vsm2,mergedSampleIds)
+    (vsm1.reindexSamplesNoOption(mergedSampleIds,mergedLocalSamples),vsm2.reindexSamplesNoOption(mergedSampleIds,mergedLocalSamples))
+  }
+
+  def sampleOuterJoin[T,S](vsm1:VariantSampleMatrix[T], vsm2:VariantSampleMatrix[S])
+                                (implicit tct: ClassTag[T], sct: ClassTag[S]):(VariantSampleMatrix[Option[T]],VariantSampleMatrix[Option[S]]) = {
+    val mergedSampleIds = vsm1.sampleIds.toSet.union(vsm2.sampleIds.toSet).toArray
+    val mergedLocalSamples = mergeLocalSamples(vsm1,vsm2,mergedSampleIds)
+    (vsm1.reindexSamplesOption(mergedSampleIds,mergedLocalSamples),vsm2.reindexSamplesOption(mergedSampleIds,mergedLocalSamples))
+  }
+
+  def sampleLeftJoin[T,S](vsm1:VariantSampleMatrix[T], vsm2:VariantSampleMatrix[S])
+                         (implicit tct: ClassTag[T], sct: ClassTag[S]): (VariantSampleMatrix[T],VariantSampleMatrix[Option[S]]) = {
+    val mergedSampleIds = vsm1.sampleIds
+    val mergedLocalSamples = mergeLocalSamples(vsm1,vsm2,mergedSampleIds)
+    (vsm1.reindexSamplesNoOption(mergedSampleIds,mergedLocalSamples),vsm2.reindexSamplesOption(mergedSampleIds,mergedLocalSamples))
+  }
+
+  def sampleRightJoin[T,S](vsm1:VariantSampleMatrix[T],vsm2:VariantSampleMatrix[S])
+                                (implicit tct: ClassTag[T], sct: ClassTag[S]):(VariantSampleMatrix[Option[T]],VariantSampleMatrix[S]) = {
+    val mergedSampleIds = vsm2.sampleIds
+    val mergedLocalSamples = mergeLocalSamples(vsm1,vsm2,mergedSampleIds)
+    (vsm1.reindexSamplesOption(mergedSampleIds,mergedLocalSamples),vsm2.reindexSamplesNoOption(mergedSampleIds,mergedLocalSamples))
+  }
+
+  def variantInnerJoin[T,S](vsm1:VariantSampleMatrix[T],vsm2:VariantSampleMatrix[S])
+                           (implicit tct: ClassTag[T], sct: ClassTag[S]): RDD[(Variant,(Iterable[T],Iterable[S]))] = {
+    vsm1.rdd.join(vsm2.rdd)
+  }
+
+  def variantLeftJoin[T,S](vsm1:VariantSampleMatrix[T],vsm2:VariantSampleMatrix[S])
+                           (implicit tct: ClassTag[T], sct: ClassTag[S]): RDD[(Variant,(Iterable[T],Option[Iterable[S]]))] = {
+    vsm1.rdd.leftOuterJoin(vsm2.rdd)
+  }
+
+  def variantRightJoin[T,S](vsm1:VariantSampleMatrix[T],vsm2:VariantSampleMatrix[S])
+                          (implicit tct: ClassTag[T], sct: ClassTag[S]): RDD[(Variant,(Option[Iterable[T]],Iterable[S]))] = {
+    vsm1.rdd.rightOuterJoin(vsm2.rdd)
+  }
+
+  def variantOuterJoin[T,S](vsm1:VariantSampleMatrix[T],vsm2:VariantSampleMatrix[S])
+                           (implicit tct: ClassTag[T], sct: ClassTag[S]): RDD[(Variant,(Option[Iterable[T]],Option[Iterable[S]]))] = {
+    vsm1.rdd.fullOuterJoin(vsm2.rdd)
+  }
+
+  def joinGenotypesInnerInner[T,S](a:Iterable[T],b:Iterable[S],nSamples:Int)
                                 (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(T,S)] = {
     require(a.size == b.size)
     a.zip(b)
   }
 
-  private def joinGenotypesInnerLeft[T,S](a:Iterable[T],b:Option[Iterable[S]],nSamples:Int)
+  def joinGenotypesInnerLeft[T,S](a:Iterable[T],b:Option[Iterable[S]],nSamples:Int)
                                 (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(T,Option[S])] = {
     require(nSamples == a.size)
     val bPrime: Iterable[Option[S]] = b match {
@@ -61,7 +98,7 @@ object VariantSampleMatrix {
     a.zip(bPrime)
   }
 
-  private def joinGenotypesInnerRight[T,S](a:Option[Iterable[T]],b:Iterable[S],nSamples:Int)
+  def joinGenotypesInnerRight[T,S](a:Option[Iterable[T]],b:Iterable[S],nSamples:Int)
                                          (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],S)] = {
     require(nSamples == b.size)
     val aPrime: Iterable[Option[T]] = a match {
@@ -72,7 +109,7 @@ object VariantSampleMatrix {
     aPrime.zip(b)
   }
 
-  private def joinGenotypesInnerOuter[T,S](a:Option[Iterable[T]],b:Option[Iterable[S]],nSamples:Int)
+  def joinGenotypesInnerOuter[T,S](a:Option[Iterable[T]],b:Option[Iterable[S]],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     val aPrime: Iterable[Option[T]] = a match {
       case Some(x) => x.map(t => Some(t))
@@ -86,13 +123,13 @@ object VariantSampleMatrix {
     aPrime.zip(bPrime)
   }
 
-  private def joinGenotypesLeftInner[T,S](a:Iterable[T],b:Iterable[Option[S]])
+  def joinGenotypesLeftInner[T,S](a:Iterable[T],b:Iterable[Option[S]],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(T,Option[S])] = {
     require(a.size == b.size)
     a.zip(b)
   }
 
-  private def joinGenotypesLeftLeft[T,S](a:Iterable[T],b:Option[Iterable[Option[S]]],nSamples:Int)
+  def joinGenotypesLeftLeft[T,S](a:Iterable[T],b:Option[Iterable[Option[S]]],nSamples:Int)
                                          (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(T,Option[S])] = {
     require(nSamples == a.size)
     val bPrime: Iterable[Option[S]] = b match {
@@ -103,7 +140,7 @@ object VariantSampleMatrix {
     a.zip(bPrime)
   }
 
-  private def joinGenotypesLeftRight[T,S](a:Option[Iterable[T]],b:Iterable[Option[S]],nSamples:Int)
+  def joinGenotypesLeftRight[T,S](a:Option[Iterable[T]],b:Iterable[Option[S]],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     require(nSamples == b.size)
     val aPrime: Iterable[Option[T]] = a match {
@@ -114,7 +151,7 @@ object VariantSampleMatrix {
     aPrime.zip(b)
   }
 
-  private def joinGenotypesLeftOuter[T,S](a:Option[Iterable[T]],b:Option[Iterable[Option[S]]],nSamples:Int)
+  def joinGenotypesLeftOuter[T,S](a:Option[Iterable[T]],b:Option[Iterable[Option[S]]],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     val aPrime: Iterable[Option[T]] = a match {
       case Some(x) => x.map(t => Some(t))
@@ -128,13 +165,13 @@ object VariantSampleMatrix {
     aPrime.zip(bPrime)
   }
 
-  private def joinGenotypesRightInner[T,S](a:Iterable[Option[T]],b:Iterable[S])
+ def joinGenotypesRightInner[T,S](a:Iterable[Option[T]],b:Iterable[S],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],S)] = {
     require(a.size == b.size)
     a.zip(b)
   }
 
-  private def joinGenotypesRightLeft[T,S](a:Iterable[Option[T]],b:Option[Iterable[S]],nSamples:Int)
+  def joinGenotypesRightLeft[T,S](a:Iterable[Option[T]],b:Option[Iterable[S]],nSamples:Int)
                                          (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     require(nSamples == a.size)
     val bPrime: Iterable[Option[S]] = b match {
@@ -145,7 +182,7 @@ object VariantSampleMatrix {
     a.zip(bPrime)
   }
 
-  private def joinGenotypesRightRight[T,S](a:Option[Iterable[Option[T]]],b:Iterable[S],nSamples:Int)
+  def joinGenotypesRightRight[T,S](a:Option[Iterable[Option[T]]],b:Iterable[S],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],S)] = {
     require(nSamples == b.size)
     val aPrime: Iterable[Option[T]] = a match {
@@ -156,7 +193,7 @@ object VariantSampleMatrix {
     aPrime.zip(b)
   }
 
-  private def joinGenotypesRightOuter[T,S](a:Option[Iterable[Option[T]]],b:Option[Iterable[S]],nSamples:Int)
+  def joinGenotypesRightOuter[T,S](a:Option[Iterable[Option[T]]],b:Option[Iterable[S]],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     val aPrime: Iterable[Option[T]] = a match {
       case Some(x) => x
@@ -170,13 +207,13 @@ object VariantSampleMatrix {
     aPrime.zip(bPrime)
   }
 
-  private def joinGenotypesOuterInner[T,S](a:Iterable[Option[T]],b:Iterable[Option[S]])
+  def joinGenotypesOuterInner[T,S](a:Iterable[Option[T]],b:Iterable[Option[S]],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     require(a.size == b.size)
     a.zip(b)
   }
 
-  private def joinGenotypesOuterLeft[T,S](a:Iterable[Option[T]],b:Option[Iterable[Option[S]]],nSamples:Int)
+  def joinGenotypesOuterLeft[T,S](a:Iterable[Option[T]],b:Option[Iterable[Option[S]]],nSamples:Int)
                                          (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     require(nSamples == a.size)
     val bPrime: Iterable[Option[S]] = b match {
@@ -187,7 +224,7 @@ object VariantSampleMatrix {
     a.zip(bPrime)
   }
 
-  private def joinGenotypesOuterRight[T,S](a:Option[Iterable[Option[T]]],b:Iterable[Option[S]],nSamples:Int)
+  def joinGenotypesOuterRight[T,S](a:Option[Iterable[Option[T]]],b:Iterable[Option[S]],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     require(nSamples == b.size)
     val aPrime: Iterable[Option[T]] = a match {
@@ -198,7 +235,7 @@ object VariantSampleMatrix {
     aPrime.zip(b)
   }
 
-  private def joinGenotypesOuterOuter[T,S](a:Option[Iterable[Option[T]]],b:Option[Iterable[Option[S]]],nSamples:Int)
+  def joinGenotypesOuterOuter[T,S](a:Option[Iterable[Option[T]]],b:Option[Iterable[Option[S]]],nSamples:Int)
                                           (implicit tct: ClassTag[T], sct:ClassTag[S]):Iterable[(Option[T],Option[S])] = {
     val aPrime: Iterable[Option[T]] = a match {
       case Some(x) => x
@@ -211,9 +248,6 @@ object VariantSampleMatrix {
     require(aPrime.size == bPrime.size)
     aPrime.zip(bPrime)
   }
-
-
-
 
   private def reorderGenotypesNoOption[T](gts:Iterable[T],nLocalSamples:Int,indexMapping:Array[Int])
                                          (implicit tct:ClassTag[T]): Iterable[T] = {
@@ -414,13 +448,6 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
 
-
-  private def mergeLocalSamples[S](other:VariantSampleMatrix[S],mergedSampleIds:Array[String])
-                                  (implicit sct: ClassTag[S]): Array[Int] = {
-    val localIds = this.localSamples.map(this.sampleIds) ++ other.localSamples.map(other.sampleIds)
-    for ((s,i) <- mergedSampleIds.zipWithIndex if localIds.contains(s)) yield i
-  }
-
   private def reindexSamplesOption(mergedSampleIds:Array[String],mergedLocalSamples:Array[Int]):VariantSampleMatrix[Option[T]] = {
     import VariantSampleMatrix._
     val tctLocal = tct
@@ -438,7 +465,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       mergedLocalSamples, rdd.map { case (v, s) => (v,reorderGenotypesNoOption(s,mergedLocalSamples.length,indexMapping)(tctLocal))})
   }
 
-  def reindexSamplesInnerJoin[S](other:VariantSampleMatrix[S])
+/*  def reindexSamplesInnerJoin[S](other:VariantSampleMatrix[S])
                                 (implicit sct: ClassTag[S]):(VariantSampleMatrix[T],VariantSampleMatrix[S]) = {
     val mergedSampleIds = this.sampleIds.toSet.intersect(other.sampleIds.toSet).toArray
     val mergedLocalSamples = mergeLocalSamples(other,mergedSampleIds)
@@ -464,8 +491,27 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val mergedSampleIds = other.sampleIds
     val mergedLocalSamples = mergeLocalSamples(other,mergedSampleIds)
     (this.reindexSamplesOption(mergedSampleIds,mergedLocalSamples),other.reindexSamplesNoOption(mergedSampleIds,mergedLocalSamples))
-  }
+  }*/
 
+
+  def superJoin[S,T2,S2,T3,S3,T4,S4](other:VariantSampleMatrix[S],
+                                       sampleJoinFunction:(VariantSampleMatrix[T],VariantSampleMatrix[S]) => (VariantSampleMatrix[T2],VariantSampleMatrix[S2]),
+                                       variantJoinFunction:(VariantSampleMatrix[T2],VariantSampleMatrix[S2]) => RDD[(Variant,(T3,S3))],
+                                       genotypeJoinFunction:(T3,S3,Int) => Iterable[(T4,S4)])
+                                      (implicit t1ct: ClassTag[T], t2ct: ClassTag[T2], t3ct: ClassTag[T3],t4ct:ClassTag[T4],
+                                       s1ct:ClassTag[S], s2ct:ClassTag[S2], s3ct:ClassTag[S3], s4ct:ClassTag[T4]) : VariantSampleMatrix[(T4,S4)] = {
+
+    val (vsm1Prime: VariantSampleMatrix[T2], vsm2Prime: VariantSampleMatrix[S2]) = sampleJoinFunction(this,other)
+    require(vsm1Prime.sampleIds.sameElements(vsm2Prime.sampleIds) && vsm1Prime.localSamples.sameElements(vsm2Prime.localSamples))
+    val nSamplesLocal = vsm1Prime.nLocalSamples
+    val tct1Local = t1ct
+    val sct1Local = s1ct
+    new VariantSampleMatrix[(T4,S4)](new VariantMetadata(vsm1Prime.metadata.contigLength,vsm1Prime.sampleIds,vsm1Prime.metadata.vcfHeader),
+      vsm1Prime.localSamples,
+      variantJoinFunction(vsm1Prime,vsm2Prime).map{case (v,(a:T3,b:S3)) => (v,genotypeJoinFunction(a,b,nSamplesLocal))}
+    )
+  }
+/*
   def joinInnerInner[S](other:VariantSampleMatrix[S])
              (implicit sct: ClassTag[S]): VariantSampleMatrix[(T,S)] = {
     import VariantSampleMatrix._
@@ -566,58 +612,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       this.localSamples,
       this.rdd.fullOuterJoin(other.rdd).map{case (v,(a,b)) => (v,joinGenotypesLeftOuter(a,b,nSamplesLocal)(tctLocal,sctLocal))}
     )
-  }
-
-  def joinRightInner[S](other:VariantSampleMatrix[S])
-                       (implicit sct: ClassTag[S]): VariantSampleMatrix[(T,S)] = {
-    import VariantSampleMatrix._
-    require(this.sampleIds.sameElements(other.sampleIds) && this.localSamples.sameElements(other.localSamples))
-    val tctLocal = tct
-    val sctLocal = sct
-    new VariantSampleMatrix[(T,S)](new VariantMetadata(this.metadata.contigLength,this.sampleIds,this.metadata.vcfHeader),
-      this.localSamples,
-      this.rdd.join(other.rdd).map{case (v,(a,b)) => (v,joinGenotypesRightInner(a,b)(tctLocal,sctLocal))}
-    )
-  }
-
-  def joinRightLeft[S](other:VariantSampleMatrix[S])
-                      (implicit sct: ClassTag[S]): VariantSampleMatrix[(T,Option[S])] = {
-    import VariantSampleMatrix._
-    require(this.sampleIds.sameElements(other.sampleIds) && this.localSamples.sameElements(other.localSamples))
-    val nSamplesLocal = this.nLocalSamples
-    val tctLocal = tct
-    val sctLocal = sct
-    new VariantSampleMatrix[(T,Option[S])](new VariantMetadata(this.metadata.contigLength,this.sampleIds,this.metadata.vcfHeader),
-      this.localSamples,
-      this.rdd.leftOuterJoin(other.rdd).map{case (v,(a,b)) => (v,joinGenotypesRightLeft(a,b,nSamplesLocal)(tctLocal,sctLocal))}
-    )
-  }
-
-  def joinRightRight[S](other:VariantSampleMatrix[S])
-                       (implicit sct: ClassTag[S]): VariantSampleMatrix[(Option[T],S)] = {
-    import VariantSampleMatrix._
-    require(this.sampleIds.sameElements(other.sampleIds) && this.localSamples.sameElements(other.localSamples))
-    val nSamplesLocal = this.nLocalSamples
-    val tctLocal = tct
-    val sctLocal = sct
-    new VariantSampleMatrix[(Option[T],S)](new VariantMetadata(this.metadata.contigLength,this.sampleIds,this.metadata.vcfHeader),
-      this.localSamples,
-      this.rdd.rightOuterJoin(other.rdd).map{case (v,(a,b)) => (v,joinGenotypesRightRight(a,b,nSamplesLocal)(tctLocal,sctLocal))}
-    )
-  }
-
-  def joinRightOuter[S](other:VariantSampleMatrix[S])
-                       (implicit sct: ClassTag[S]): VariantSampleMatrix[(Option[T],Option[S])] = {
-    import VariantSampleMatrix._
-    require(this.sampleIds.sameElements(other.sampleIds) && this.localSamples.sameElements(other.localSamples))
-    val nSamplesLocal = this.nLocalSamples
-    val tctLocal = tct
-    val sctLocal = sct
-    new VariantSampleMatrix[(Option[T],Option[S])](new VariantMetadata(this.metadata.contigLength,this.sampleIds,this.metadata.vcfHeader),
-      this.localSamples,
-      this.rdd.fullOuterJoin(other.rdd).map{case (v,(a,b)) => (v,joinGenotypesRightOuter(a,b,nSamplesLocal)(tctLocal,sctLocal))}
-    )
-  }
+  }*/
 }
 
 // FIXME AnyVal Scala 2.11
@@ -726,24 +721,9 @@ object OptionVSM {
     aPrime.zip(bPrime)
   }
 }
-  class OptionVSM[T](val vsm:VariantSampleMatrix[Option[T]])
-                  (implicit tct: ClassTag[T],
-                   vct: ClassTag[Variant]){
 
-  def joinRightRight[S](other:VariantSampleMatrix[S])
-                       (implicit sct: ClassTag[S]): VariantSampleMatrix[(Option[T],Option[S])] = {
-    import OptionVSM._
-    require(vsm.sampleIds.sameElements(other.sampleIds) && vsm.localSamples.sameElements(other.localSamples))
-    val nSamplesLocal = vsm.nLocalSamples
-    val tctLocal = tct
-    val sctLocal = sct
-    new VariantSampleMatrix[(Option[T],Option[S])](new VariantMetadata(vsm.metadata.contigLength,vsm.sampleIds,vsm.metadata.vcfHeader),
-      vsm.localSamples,
-      vsm.rdd.fullOuterJoin(other.rdd).map{case (v,(a,b)) => (v,joinGenotypesRightRight(a,b,nSamplesLocal)(tctLocal,sctLocal))}
-    )
-  }
-  }
-}
+
+class OptionVSM[T](val vsm:VariantSampleMatrix[Option[T]])(implicit tct: ClassTag[T], vct: ClassTag[Variant])
 //option vds implicit conversion
 //parameterize input and output types
 //implicit conversion RDD tuple joins
