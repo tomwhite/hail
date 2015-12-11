@@ -7,11 +7,49 @@ import org.testng.annotations.Test
 
 class FilterSuite extends SparkSuite {
 
-  @Test def filterUtilsTest(): Unit = {
+  @Test def filterUtilsTest() {
     import org.broadinstitute.hail.methods.FilterUtils._
-    assert(5 === 5.0)
-    assert(5.0 === 5)
+    
+    def fEmpty[T](fo: FilterOption[T]) {
+      assert(fo.ot.isEmpty)
+    }
+    def fAssert(p: FilterOption[Boolean]) {
+      assert(p.ot.getOrElse(false))
+    }
+    
+    fEmpty(new FilterOption(None) fEq new FilterOption(None))
+    fEmpty(new FilterOption[Boolean](None) fEq true)
 
+    fAssert(true fEq true)
+    fAssert(FilterOption(true) fEq true)
+    fAssert(true fEq FilterOption(true))
+    fAssert(FilterOption(true) fEq FilterOption(true))
+
+    fEmpty(FilterOption.empty fEq true)
+    fEmpty(true fEq FilterOption.empty)
+    fEmpty(FilterOption.empty fEq FilterOption(true))
+    fEmpty(FilterOption(true) fEq FilterOption.empty)
+    fEmpty(FilterOption.empty fEq FilterOption.empty)
+
+    fAssert(Array(1, 2).length fEq 2)
+
+    fAssert(5 fEq 5)
+    fAssert(5.0 fEq 5)
+    fAssert(5 fEq 5.0)
+    fAssert(5.0 fEq 5.0)
+
+    fAssert(4 fLt 5)
+    fAssert(FilterOption(4) fLt 5)
+    fAssert(4 fLt FilterOption(5))
+    fAssert(FilterOption(4) fLt FilterOption(5))
+
+    fAssert(FilterOption(4.0) fLt 5)
+    fAssert(4.0 fLt FilterOption(5))
+    fAssert(FilterOption(4.0) fLt FilterOption(5))
+
+    fAssert(FilterOption(4) fLt 5.0)
+    fAssert(4.0 fLt FilterOption(5.0))
+    fAssert(FilterOption(4.0) fLt FilterOption(5.0))
   }
 
   @Test def test() {
@@ -53,51 +91,51 @@ class FilterSuite extends SparkSuite {
     assert(eval("true").get)
     assert(eval("new FilterOption(Some(true))").get)
     assert(eval("new FilterOption(None)").isEmpty)
-    assert(eval("new FilterOption(None) === new FilterOption(None)").isEmpty)
-    assert(eval("new FilterOption[Boolean](None) === true").isEmpty)
+    assert(eval("new FilterOption(None) fEq new FilterOption(None)").isEmpty)
+    assert(eval("new FilterOption[Boolean](None) fEq true").isEmpty)
 
 
-    assert(eval("true === true").get)
-    assert(eval("new FilterOption(Some(true)) === true").get)
+    assert(eval("true fEq true").get)
+    assert(eval("new FilterOption(Some(true)) fEq true").get)
 
-    assert(eval("true === new FilterOption(Some(true))").get) //FIXME
+    assert(eval("true fEq new FilterOption(Some(true))").get) //FIXME
 
-    assert(eval("new FilterOption(Some(true)) === new FilterOption(Some(true))").get)
+    assert(eval("new FilterOption(Some(true)) fEq new FilterOption(Some(true))").get)
 
-//    assert(eval("true === new FilterOption(None)").isEmpty)
-//    assert(eval("new FilterOption(None) === true").isEmpty)
-//    assert(eval("new FilterOption(None) === new FilterOption(Some(true))").isEmpty)
-//    assert(eval("new FilterOption(Some(true)) === new FilterOption(None)").isEmpty)
+//    assert(eval("true fEq new FilterOption(None)").isEmpty)
+//    assert(eval("new FilterOption(None) fEq true").isEmpty)
+//    assert(eval("new FilterOption(None) fEq new FilterOption(Some(true))").isEmpty)
+//    assert(eval("new FilterOption(Some(true)) fEq new FilterOption(None)").isEmpty)
 //
-//    assert(eval("false === new FilterOption(None)").isEmpty)
-//    assert(eval("true === new FilterOption(true)").get)
-//    assert(eval("new FilterOption(None) === new FilterOption(None)").isEmpty)
+//    assert(eval("false fEq new FilterOption(None)").isEmpty)
+//    assert(eval("true fEq new FilterOption(true)").get)
+//    assert(eval("new FilterOption(None) fEq new FilterOption(None)").isEmpty)
 
 
-//    assert(eval("Array(1,2).size === 2"))
+//    assert(eval("Array(1,2).size fEq 2"))
 
-    assert(FilterVariants.run(state2, Array("--remove", "-c", "true === true"))
+    assert(FilterVariants.run(state2, Array("--remove", "-c", "true fEq true"))
       .vds.nVariants == 0)
 
-//    assert(FilterVariants.run(state2, Array("--remove", "-c", "true === new FilterOption(Some(true))"))
+//    assert(FilterVariants.run(state2, Array("--remove", "-c", "true fEq new FilterOption(Some(true))"))
 //      .vds.nVariants == 0)
 
     assert(FilterVariants.run(state2, Array("--remove", "-c", "true"))
       .vds.nVariants == 0)
 
-    assert(FilterVariants.run(state2, Array("--keep", "-c", "5 === 5"))
+    assert(FilterVariants.run(state2, Array("--keep", "-c", "5 fEq 5"))
       .vds.nVariants == 1)
 
-    assert(FilterVariants.run(state2, Array("--remove", "-c", "5.0 === 5.0"))
+    assert(FilterVariants.run(state2, Array("--remove", "-c", "5.0 fEq 5.0"))
       .vds.nVariants == 0)
 
     assert(FilterVariants.run(state2, Array("--keep", "-c", "5 == 5.0"))
       .vds.nVariants == 1)
 
-    assert(FilterVariants.run(state2, Array("--remove", "-c", "5.0 === 5"))
+    assert(FilterVariants.run(state2, Array("--remove", "-c", "5.0 fEq 5"))
       .vds.nVariants == 0)
 
-    assert(FilterVariants.run(state2, Array("--remove", "-c", "5 === 5.0"))
+    assert(FilterVariants.run(state2, Array("--remove", "-c", "5 fEq 5.0"))
       .vds.nVariants == 0)
 //
 //    assert(FilterVariants.run(state2, Array("--remove", "-c", "val a = new FilterOption[Int](Some(4)); val b = new FilterOption[Int](Some(5)); a > b"))
