@@ -23,9 +23,6 @@ package object variant {
   implicit def toRichIterableGenotype(it: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(it)
   implicit def toRichVDS(vsm: VariantDataset): RichVDS = new RichVDS(vsm)
 
-  implicit def toOptionVSM[T](vsm:VariantSampleMatrix[Option[T]])
-                             (implicit tct:ClassTag[T], vct:ClassTag[Variant]) = new OptionVSM(vsm)
-
 
   // type VariantSampleMatrix[T, S] = managed.ManagedVSM[T, S]
   // type VariantSampleMatrix[T, S <: Iterable[(Int, T)]] = sparky.SparkyVSM[T, S]
