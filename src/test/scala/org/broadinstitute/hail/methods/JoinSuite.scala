@@ -29,27 +29,29 @@ class JoinSuite extends SparkSuite {
       val nVariants = expectedNumVariants(vjt)
 
       val mergedVSM = (sjt, vjt) match {
-        case ("inner", "inner") => vsm1.join(vsm2,sampleInnerJoin[Genotype,Genotype],variantInnerJoin[Genotype,Genotype],joinGenotypesInnerInner[Genotype,Genotype])
-        case ("inner", "left") => vsm1.join(vsm2,sampleInnerJoin[Genotype,Genotype],variantLeftJoin[Genotype,Genotype],joinGenotypesInnerLeft[Genotype,Genotype])
-        case ("inner", "right") => vsm1.join(vsm2,sampleInnerJoin[Genotype,Genotype],variantRightJoin[Genotype,Genotype],joinGenotypesInnerRight[Genotype,Genotype])
-        case ("inner", "outer") => vsm1.join(vsm2,sampleInnerJoin[Genotype,Genotype],variantOuterJoin[Genotype,Genotype],joinGenotypesInnerOuter[Genotype,Genotype])
-        case ("left", "inner") => vsm1.join(vsm2,sampleLeftJoin[Genotype,Genotype],variantInnerJoin[Genotype,Option[Genotype]],joinGenotypesLeftInner[Genotype,Genotype])
-        case ("left", "left") => vsm1.join(vsm2,sampleLeftJoin[Genotype,Genotype],variantLeftJoin[Genotype,Option[Genotype]],joinGenotypesLeftLeft[Genotype,Genotype])
-        case ("left", "right") => vsm1.join(vsm2,sampleLeftJoin[Genotype,Genotype],variantRightJoin[Genotype,Option[Genotype]],joinGenotypesLeftRight[Genotype,Genotype])
-        case ("left", "outer") => vsm1.join(vsm2,sampleLeftJoin[Genotype,Genotype],variantOuterJoin[Genotype,Option[Genotype]],joinGenotypesLeftOuter[Genotype,Genotype])
-        case ("right", "inner") => vsm1.join(vsm2,sampleRightJoin[Genotype,Genotype],variantInnerJoin[Option[Genotype],Genotype],joinGenotypesRightInner[Genotype,Genotype])
-        case ("right", "left") => vsm1.join(vsm2,sampleRightJoin[Genotype,Genotype],variantLeftJoin[Option[Genotype],Genotype],joinGenotypesRightLeft[Genotype,Genotype])
-        case ("right", "right") => vsm1.join(vsm2,sampleRightJoin[Genotype,Genotype],variantRightJoin[Option[Genotype],Genotype],joinGenotypesRightRight[Genotype,Genotype])
-        case ("right", "outer") => vsm1.join(vsm2,sampleRightJoin[Genotype,Genotype],variantOuterJoin[Option[Genotype],Genotype],joinGenotypesRightOuter[Genotype,Genotype])
-        case ("outer", "inner") => vsm1.join(vsm2,sampleOuterJoin[Genotype,Genotype],variantInnerJoin[Option[Genotype],Option[Genotype]],joinGenotypesOuterInner[Genotype,Genotype])
-        case ("outer", "left") => vsm1.join(vsm2,sampleOuterJoin[Genotype,Genotype],variantLeftJoin[Option[Genotype],Option[Genotype]],joinGenotypesOuterLeft[Genotype,Genotype])
-        case ("outer", "right") => vsm1.join(vsm2,sampleOuterJoin[Genotype,Genotype],variantRightJoin[Option[Genotype],Option[Genotype]],joinGenotypesOuterRight[Genotype,Genotype])
-        case ("outer", "outer") => vsm1.join(vsm2,sampleOuterJoin[Genotype,Genotype],variantOuterJoin[Option[Genotype],Option[Genotype]],joinGenotypesOuterOuter[Genotype,Genotype])
+        case ("inner", "inner") => vsm1.join(vsm2,sampleInnerJoin[Genotype,Genotype],variantInnerJoin[Genotype,Genotype],genotypeInnerInnerJoin[Genotype,Genotype])
+        case ("inner", "left") => vsm1.join(vsm2,sampleInnerJoin[Genotype,Genotype],variantLeftJoin[Genotype,Genotype],genotypeInnerLeftJoin[Genotype,Genotype])
+        case ("inner", "right") => vsm1.join(vsm2,sampleInnerJoin[Genotype,Genotype],variantRightJoin[Genotype,Genotype],genotypeInnerRightJoin[Genotype,Genotype])
+        case ("inner", "outer") => vsm1.join(vsm2,sampleInnerJoin[Genotype,Genotype],variantOuterJoin[Genotype,Genotype],genotypeInnerOuterJoin[Genotype,Genotype])
+        case ("left", "inner") => vsm1.join(vsm2,sampleLeftJoin[Genotype,Genotype],variantInnerJoin[Genotype,Option[Genotype]],genotypeLeftInnerJoin[Genotype,Genotype])
+        case ("left", "left") => vsm1.join(vsm2,sampleLeftJoin[Genotype,Genotype],variantLeftJoin[Genotype,Option[Genotype]],genotypeLeftLeftJoin[Genotype,Genotype])
+        case ("left", "right") => vsm1.join(vsm2,sampleLeftJoin[Genotype,Genotype],variantRightJoin[Genotype,Option[Genotype]],genotypeLeftRightJoin[Genotype,Genotype])
+        case ("left", "outer") => vsm1.join(vsm2,sampleLeftJoin[Genotype,Genotype],variantOuterJoin[Genotype,Option[Genotype]],genotypeLeftOuterJoin[Genotype,Genotype])
+        case ("right", "inner") => vsm1.join(vsm2,sampleRightJoin[Genotype,Genotype],variantInnerJoin[Option[Genotype],Genotype],genotypeRightInnerJoin[Genotype,Genotype])
+        case ("right", "left") => vsm1.join(vsm2,sampleRightJoin[Genotype,Genotype],variantLeftJoin[Option[Genotype],Genotype],genotypeRightLeftJoin[Genotype,Genotype])
+        case ("right", "right") => vsm1.join(vsm2,sampleRightJoin[Genotype,Genotype],variantRightJoin[Option[Genotype],Genotype],genotypeRightRightJoin[Genotype,Genotype])
+        case ("right", "outer") => vsm1.join(vsm2,sampleRightJoin[Genotype,Genotype],variantOuterJoin[Option[Genotype],Genotype],genotypeRightOuterJoin[Genotype,Genotype])
+        case ("outer", "inner") => vsm1.join(vsm2,sampleOuterJoin[Genotype,Genotype],variantInnerJoin[Option[Genotype],Option[Genotype]],genotypeOuterInnerJoin[Genotype,Genotype])
+        case ("outer", "left") => vsm1.join(vsm2,sampleOuterJoin[Genotype,Genotype],variantLeftJoin[Option[Genotype],Option[Genotype]],genotypeOuterLeftJoin[Genotype,Genotype])
+        case ("outer", "right") => vsm1.join(vsm2,sampleOuterJoin[Genotype,Genotype],variantRightJoin[Option[Genotype],Option[Genotype]],genotypeOuterRightJoin[Genotype,Genotype])
+        case ("outer", "outer") => vsm1.join(vsm2,sampleOuterJoin[Genotype,Genotype],variantOuterJoin[Option[Genotype],Option[Genotype]],genotypeOuterOuterJoin[Genotype,Genotype])
         case _ => throw new UnsupportedOperationException
       }
 
       assert(mergedVSM.localSamples.length == nSamples)
       assert(mergedVSM.rdd.filter{case (v,g) => g.size == nSamples}.count == nVariants)
+
+      //println(mergedVSM.metadata.contigLength.mkString("\n")) //need to test the contigLength merge
 
       val vsm1SampleIdsLocal = vsm1.sampleIds
       val vsm2SampleIdsLocal = vsm2.sampleIds
