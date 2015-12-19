@@ -33,6 +33,20 @@ class FilterSuite extends SparkSuite {
 
     fAssert(Array(1, 2).length fEq 2)
 
+    fAssert((-1).fAbs fEq 1)
+    
+    fAssert((0 max 1) fEq 1)
+
+    fAssert((0 max 1) fEq 1)
+
+    fAssert((0 fMax 1) nfEq 0)
+
+    fAssert((0 fMax 1) fEq 1)
+
+    fAssert((1 / 2) fEq 0)
+
+    fAssert((1 / 2.toDouble) fEq .5)
+
     fAssert(5 fEq 5)
     fAssert(5.0 fEq 5)
     fAssert(5 fEq 5.0)
