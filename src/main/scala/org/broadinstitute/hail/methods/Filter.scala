@@ -34,21 +34,24 @@ class FilterOption[+T](val ot: Option[T]) extends AnyVal {
 }
 
 class FilterOptionBoolean(val ob: Option[Boolean]) extends AnyVal {
-  def &&(that: FilterOptionBoolean): FilterOption[Boolean] = FilterOption[Boolean, Boolean, Boolean](ob, that.ob, _ && _)
+  def fAnd(that: FilterOptionBoolean): FilterOption[Boolean] = FilterOption[Boolean, Boolean, Boolean](ob, that.ob, _ && _)
 
-  def ||(that: FilterOptionBoolean): FilterOption[Boolean] = FilterOption[Boolean, Boolean, Boolean](ob, that.ob, _ || _)
+  def fOr(that: FilterOptionBoolean): FilterOption[Boolean] = FilterOption[Boolean, Boolean, Boolean](ob, that.ob, _ || _)
 
   def unary_!(): FilterOption[Boolean] = new FilterOption(ob.map(!_))
 }
 
 class FilterOptionString(val os: Option[String]) extends AnyVal {
-  def toInt: FilterOption[Int] = new FilterOption(os.map(_.toInt))
+  def apply(i: Int): FilterOption[Char] = new FilterOption(os.map(_ (i)))
+
+  def length: FilterOption[Int] = new FilterOption(os.map(_.length))
+
+  def fConcat(that: FilterOptionString) = FilterOption[String, String, String](os, that.os, _ + _)
 
   def toDouble: FilterOption[Double] = new FilterOption(os.map(_.toDouble))
-
-  def +(that: FilterOptionString) = FilterOption[String, String, String](os, that.os, _ + _)
-
-  def apply(i: Int): FilterOption[Char] = new FilterOption(os.map(_ (i)))
+  def toFloat: FilterOption[Float] = new FilterOption(os.map(_.toFloat))
+  def toLong: FilterOption[Long] = new FilterOption(os.map(_.toLong))
+  def toInt: FilterOption[Int] = new FilterOption(os.map(_.toInt))
 }
 
 class FilterOptionArray[T](val oa: Option[Array[T]]) extends AnyVal {
@@ -58,20 +61,25 @@ class FilterOptionArray[T](val oa: Option[Array[T]]) extends AnyVal {
 
   def length: FilterOption[Int] = new FilterOption(oa.map(_.length))
 
-  // FIXME
-  //def ++(that: FilterOptionArray[T]): FilterOption[Array[T]] = new FilterOption(oa.flatMap(a => that.oa.map(a ++ _)))
+  //Fixme
+  //def fConcat(that: FilterOptionArray[T]): FilterOption[Array[T]] = new FilterOption(oa.flatMap(a => that.oa.map(a ++ _)))
 }
 
 class FilterOptionDouble(val od: Option[Double]) {
-  def +(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ + _)
+  def fPlus(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ + _)
+  def fPlus(that: FilterOptionInt): FilterOption[Double] = FilterOption[Double, Int, Double](od, that.oi, _ + _)
 
-  def -(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ - _)
+  def fMinus(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ - _)
+  def fMinus(that: FilterOptionInt): FilterOption[Double] = FilterOption[Double, Int, Double](od, that.oi, _ - _)
 
-  def *(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ * _)
+  def fTimes(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ * _)
+  def fTimes(that: FilterOptionInt): FilterOption[Double] = FilterOption[Double, Int, Double](od, that.oi, _ * _)
 
-  def /(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ / _)
+  def fDiv(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ / _)
+  def fDiv(that: FilterOptionInt): FilterOption[Double] = FilterOption[Double, Int, Double](od, that.oi, _ / _)
 
-  def %(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ % _)
+  def fMod(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](od, that.od, _ % _)
+  def fMod(that: FilterOptionInt): FilterOption[Double] = FilterOption[Double, Int, Double](od, that.oi, _ % _)
 
   def unary_-(): FilterOption[Double] = new FilterOption(od.map(- _))
   def unary_+(): FilterOption[Double] = new FilterOption(od)
@@ -103,20 +111,20 @@ class FilterOptionDouble(val od: Option[Double]) {
 }
 
 class FilterOptionFloat(val of: Option[Float]) {
-  def +(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ + _)
-  def +(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ + _)
+  def fPlus(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ + _)
+  def fPlus(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ + _)
 
-  def -(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ - _)
-  def -(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ - _)
+  def fMinus(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ - _)
+  def fMinus(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ - _)
 
-  def *(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ * _)
-  def *(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ * _)
+  def fTimes(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ * _)
+  def fTimes(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ * _)
 
-  def /(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ / _)
-  def /(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ / _)
+  def fDiv(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ / _)
+  def fDiv(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ / _)
 
-  def %(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ % _)
-  def %(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ % _)
+  def fMod(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ % _)
+  def fMod(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](of, that.od, _ % _)
 
   def unary_-(): FilterOption[Float] = new FilterOption(of.map(- _))
   def unary_+(): FilterOption[Float] = new FilterOption(of)
@@ -125,10 +133,7 @@ class FilterOptionFloat(val of: Option[Float]) {
   def fSignum: FilterOption[Int] = new FilterOption(of.map(_.signum))
 
   def fMax(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ max _)
-  def fMax(that: Float): FilterOption[Float] = new FilterOption(of.map(_ max that))
-
   def fMin(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](of, that.of, _ min _)
-  def fMin(that: Float): FilterOption[Float] = new FilterOption(of.map(_ min that))
 
   def toDouble: FilterOption[Double] = new FilterOption(of.map(_.toDouble))
 
@@ -155,25 +160,25 @@ class FilterOptionFloat(val of: Option[Float]) {
 
 
 class FilterOptionLong(val ol: Option[Long]) {
-  def +(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ + _)
-  def +(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ + _)
-  def +(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ + _)
+  def fPlus(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ + _)
+  def fPlus(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ + _)
+  def fPlus(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ + _)
 
-  def -(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ - _)
-  def -(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ - _)
-  def -(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ - _)
+  def fMinus(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ - _)
+  def fMinus(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ - _)
+  def fMinus(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ - _)
 
-  def *(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ * _)
-  def *(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ * _)
-  def *(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ * _)
+  def fTimes(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ * _)
+  def fTimes(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ * _)
+  def fTimes(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ * _)
 
-  def /(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ / _)
-  def /(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ / _)
-  def /(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ / _)
+  def fDiv(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ / _)
+  def fDiv(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ / _)
+  def fDiv(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ / _)
 
-  def %(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ % _)
-  def %(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ % _)
-  def %(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ % _)
+  def fMod(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ % _)
+  def fMod(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](ol, that.of, _ % _)
+  def fMod(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](ol, that.od, _ % _)
 
   def unary_-(): FilterOption[Long] = new FilterOption(ol.map(- _))
   def unary_+(): FilterOption[Long] = new FilterOption(ol)
@@ -182,11 +187,8 @@ class FilterOptionLong(val ol: Option[Long]) {
   def fSignum: FilterOption[Int] = new FilterOption(ol.map(_.signum))
 
   def fMax(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ max _)
-  def fMax(that: Long): FilterOption[Long] = new FilterOption(ol.map(_ max that))
-
   def fMin(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](ol, that.ol, _ min _)
-  def fMin(that: Long): FilterOption[Long] = new FilterOption(ol.map(_ min that))
-  
+
   def toDouble: FilterOption[Double] = new FilterOption(ol.map(_.toDouble))
   def toFloat: FilterOption[Float] = new FilterOption(ol.map(_.toFloat))
   
@@ -220,30 +222,30 @@ class FilterOptionLong(val ol: Option[Long]) {
 }
 
 class FilterOptionInt(val oi: Option[Int]) {
-  def +(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ + _)
-  def +(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ + _)
-  def +(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ + _)
-  def +(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ + _)
+  def fPlus(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ + _)
+  def fPlus(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ + _)
+  def fPlus(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ + _)
+  def fPlus(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ + _)
 
-  def -(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ - _)
-  def -(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ - _)
-  def -(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ - _)
-  def -(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ - _)
+  def fMinus(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ - _)
+  def fMinus(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ - _)
+  def fMinus(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ - _)
+  def fMinus(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ - _)
 
-  def *(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ * _)
-  def *(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ * _)
-  def *(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ * _)
-  def *(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ * _)
+  def fTimes(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ * _)
+  def fTimes(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ * _)
+  def fTimes(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ * _)
+  def fTimes(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ * _)
 
-  def /(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ / _)
-  def /(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ / _)
-  def /(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ / _)
-  def /(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ / _)
+  def fDiv(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ / _)
+  def fDiv(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ / _)
+  def fDiv(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ / _)
+  def fDiv(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ / _)
 
-  def %(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ % _)
-  def %(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ % _)
-  def %(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ % _)
-  def %(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ % _)
+  def fMod(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ % _)
+  def fMod(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](oi, that.ol, _ % _)
+  def fMod(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](oi, that.of, _ % _)
+  def fMod(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](oi, that.od, _ % _)
 
   def unary_-(): FilterOption[Int] = new FilterOption(oi.map(- _))
   def unary_+(): FilterOption[Int] = new FilterOption(oi)
@@ -252,7 +254,6 @@ class FilterOptionInt(val oi: Option[Int]) {
   def fSignum: FilterOption[Int] = new FilterOption(oi.map(_.signum))
 
   def fMax(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ max _)
-
   def fMin(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](oi, that.oi, _ min _)
 
   def toDouble: FilterOption[Double] = new FilterOption(oi.map(_.toDouble))
@@ -293,10 +294,13 @@ object FilterUtils {
 
   implicit def toFilterOption[T](t: T): FilterOption[T] = new FilterOption(Some(t))
 
+  implicit def toFilterOptionBoolean(b: Boolean): FilterOptionBoolean = new FilterOptionBoolean(Some(b))
   implicit def toFilterOptionBoolean(fo: FilterOption[Boolean]): FilterOptionBoolean = new FilterOptionBoolean(fo.ot)
 
+  implicit def toFilterOptionString(s: String): FilterOptionString = new FilterOptionString(Some(s))
   implicit def toFilterOptionString(fo: FilterOption[String]): FilterOptionString = new FilterOptionString(fo.ot)
 
+  implicit def toFilterOptionArray[T](a: Array[T]): FilterOptionArray[T] = new FilterOptionArray(Some(a))
   implicit def toFilterOptionArray[T](fo: FilterOption[Array[T]]): FilterOptionArray[T] = new FilterOptionArray[T](fo.ot)
 
   implicit def toFilterOptionDouble(v: Double): FilterOptionDouble = new FilterOptionDouble(Some(v))
@@ -363,45 +367,3 @@ class FilterGenotypeCondition(cond: String)
       cond + " }: org.broadinstitute.hail.methods.FilterOption[Boolean]") {
   def apply(v: Variant, s: Sample, g: Genotype) = eval()(v, s, g)
 }
-
-/*
-class FilterOptionOrdered[T](val ot: Option[T])(implicit order: (T) => Ordered[T]) {
-  def >(that: FilterOptionOrdered[T]): FilterOption[Boolean] = FilterOption[T, T, Boolean](ot, that.ot, _ > _)
-
-  def fLt(that: FilterOptionOrdered[T]): FilterOption[Boolean] = FilterOption[T, T, Boolean](ot, that.ot, _ < _)
-
-  def >=(that: FilterOptionOrdered[T]): FilterOption[Boolean] = FilterOption[T, T, Boolean](ot, that.ot, _ >= _)
-
-  def fLe(that: FilterOptionOrdered[T]): FilterOption[Boolean] = FilterOption[T, T, Boolean](ot, that.ot, _ <= _)
-}
-
-class FilterOptionNumeric[T](val ot: Option[T])(implicit order: (T) => scala.math.Numeric[T]#Ops) {
-  def +(that: FilterOptionNumeric[T]): FilterOption[T] = FilterOption[T, T, T](ot, that.ot, _ + _)
-
-  def -(that: FilterOptionNumeric[T]): FilterOption[T] = FilterOption[T, T, T](ot, that.ot, _ - _)
-
-  def *(that: FilterOptionNumeric[T]): FilterOption[T] = FilterOption[T, T, T](ot, that.ot, _ * _)
-
-  def unary_-(): FilterOption[T] = new FilterOption(ot.map(-_))
-
-  def abs: FilterOption[T] = new FilterOption(ot.map(_.abs()))
-
-  def signum: FilterOption[Int] = new FilterOption(ot.map(_.signum()))
-
-  def toInt: FilterOption[Int] = new FilterOption(ot.map(_.toInt()))
-
-  def toLong: FilterOption[Long] = new FilterOption(ot.map(_.toLong()))
-
-  def toFloat: FilterOption[Float] = new FilterOption(ot.map(_.toFloat()))
-
-  def toDouble: FilterOption[Double] = new FilterOption(ot.map(_.toDouble()))
-}
-*/
-
-
-/*
-implicit def toFilterOptionOrdered[T](fo: FilterOption[T])(implicit order: (T) => Ordered[T]): FilterOptionOrdered[T] = new FilterOptionOrdered[T](fo.ot)
-implicit def toFilterOptionOrdered[T](t: T)(implicit order: (T) => Ordered[T]): FilterOptionOrdered[T] = new FilterOptionOrdered[T](Some(t))
-implicit def toFilterOptionNumeric[T](fo: FilterOption[T])(implicit order: (T) => scala.math.Numeric[T]#Ops): FilterOptionNumeric[T] = new FilterOptionNumeric[T](fo.ot)
-implicit def toFilterOptionNumeric[T](t: T)(implicit order: (T) => scala.math.Numeric[T]#Ops): FilterOptionNumeric[T] = new FilterOptionNumeric[T](Some(t))
-*/

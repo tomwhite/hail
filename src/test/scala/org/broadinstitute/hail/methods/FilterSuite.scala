@@ -16,54 +16,244 @@ class FilterSuite extends SparkSuite {
     def fAssert(p: FilterOption[Boolean]) {
       assert(p.ot.getOrElse(false))
     }
-    
-    fEmpty(new FilterOption(None) fEq new FilterOption(None))
-    fEmpty(new FilterOption[Boolean](None) fEq true)
+
+    // FilterOption
+    val fNone = FilterOption.empty
+    val fTrue = FilterOption(true)
+    val fFalse = FilterOption(false)
+
+    fAssert(fTrue)
+    fEmpty(fNone)
 
     fAssert(true fEq true)
-    fAssert(FilterOption(true) fEq true)
-    fAssert(true fEq FilterOption(true))
-    fAssert(FilterOption(true) fEq FilterOption(true))
+    fAssert(fTrue fEq true)
+    fAssert(true fEq fTrue)
+    fAssert(fTrue fEq fTrue)
 
-    fEmpty(FilterOption.empty fEq true)
-    fEmpty(true fEq FilterOption.empty)
-    fEmpty(FilterOption.empty fEq FilterOption(true))
-    fEmpty(FilterOption(true) fEq FilterOption.empty)
-    fEmpty(FilterOption.empty fEq FilterOption.empty)
+    fEmpty(fNone fEq true)
+    fEmpty(true fEq fNone)
+    fEmpty(fNone fEq fTrue)
+    fEmpty(fTrue fEq fNone)
+    fEmpty(fNone fEq fNone)
 
-    fAssert(Array(1, 2).length fEq 2)
+    fAssert(true nfEq false)
+    fAssert(fTrue nfEq false)
+    fAssert(true nfEq fFalse)
+    fAssert(fTrue nfEq fFalse)
 
-    fAssert((-1).fAbs fEq 1)
-    
-    fAssert((0 max 1) fEq 1)
+    // FilterOptionBoolean
+    fAssert(fTrue fAnd true)
+    fAssert(true fAnd fTrue)
+    fAssert(fTrue fAnd fTrue)
 
-    fAssert((0 max 1) fEq 1)
+    fAssert(fTrue fOr false)
+    fAssert(true fOr fFalse)
+    fAssert(fTrue fOr fFalse)
 
-    fAssert((0 fMax 1) nfEq 0)
+    fEmpty(fNone fAnd true)
+    fEmpty(true fAnd fNone)
+    fEmpty(fNone fAnd fTrue)
+    fEmpty(fTrue fAnd fNone)
+    fEmpty(fNone fAnd fNone)
 
-    fAssert((0 fMax 1) fEq 1)
+    fAssert(!fFalse)
+    fEmpty(!fNone)
 
-    fAssert((1 / 2) fEq 0)
+    // FilterOptionString
+    val fString1 = FilterOption("1")
+    val fString2 = FilterOption("2.0")
 
-    fAssert((1 / 2.toDouble) fEq .5)
+    val fChar = FilterOption('1')
 
-    fAssert(5 fEq 5)
-    fAssert(5.0 fEq 5)
-    fAssert(5 fEq 5.0)
-    fAssert(5.0 fEq 5.0)
+    val fMinusOne = FilterOption(-1)
+    val fZero = FilterOption(0)
+    val fOne = FilterOption(1)
+    val fTwo = FilterOption(2)
 
-    fAssert(4 fLt 5)
-    fAssert(FilterOption(4) fLt 5)
-    fAssert(4 fLt FilterOption(5))
-    fAssert(FilterOption(4) fLt FilterOption(5))
+    fAssert(fString1(0) fEq '1')
+    fAssert(fString1(0) fEq fChar)
+    fEmpty(fString1(0) fEq fNone)
 
-    fAssert(FilterOption(4.0) fLt 5)
-    fAssert(4.0 fLt FilterOption(5))
-    fAssert(FilterOption(4.0) fLt FilterOption(5))
+    fAssert(fString1.length fEq 1)
+    fAssert(fString1.length fEq fOne)
+    fEmpty(fString1.length fEq fNone)
 
-    fAssert(FilterOption(4) fLt 5.0)
-    fAssert(4.0 fLt FilterOption(5.0))
-    fAssert(FilterOption(4.0) fLt FilterOption(5.0))
+    fAssert(fString1 fConcat "2.0" fEq "12.0")
+    fAssert("1" fConcat fString2 fEq "12.0")
+    fAssert("12.0" fEq ("1" fConcat fString2))
+    fAssert("12.0" fEq (fString1 fConcat "2.0"))
+    fAssert(fString1 fConcat fString2 fEq "12.0")
+    fAssert("12.0" fEq (fString1 fConcat fString2))
+
+    fEmpty(fString1 fConcat fNone fEq "12.0")
+    fEmpty(fNone fConcat fString2 fEq "12.0")
+    fEmpty("1" fConcat fNone fEq "12.0")
+    fEmpty(fNone fConcat "2.0" fEq "12.0")
+    fEmpty(fString1 fConcat fString2 fEq fNone)
+
+    fAssert(fString1.toInt fEq 1)
+    fAssert(fString2.toDouble fEq 2.0)
+
+    fEmpty(fNone.toInt fEq 1)
+
+    fAssert((fString1.toInt fPlus fString1.toInt).toDouble fEq fString2.toDouble)
+
+    // FilterOptionArray
+    val fArray = FilterOption(Array(1, 2))
+
+    fAssert(fArray(0) fEq 1)
+    fAssert(fArray(0) fEq fOne)
+    fEmpty(fArray(0) fEq fNone)
+
+    fAssert(fArray.size fEq fTwo)
+    fAssert(fArray.size fEq 2)
+    fEmpty(fArray.size fEq fNone)
+
+    // FilterOptionInt
+    val fIntNone = new FilterOption[Int](None) // FIXME: using fNone in place of fIntNone or fDoubleNone does not work
+
+    fAssert(0 fEq 0)
+    fAssert(fZero fEq 0)
+    fAssert(0 fEq fZero)
+    fEmpty(0 fEq fNone)
+    fEmpty(fZero fEq fNone)
+
+    //fAssert(1 fPlus 1 fEq 2) // FIXME: overloading issue with 1 converting to Double, Float, Long as well
+    //fAssert(fOne fPlus 1 fEq fTwo)
+    fAssert(1 fPlus fOne fEq fTwo)
+    fAssert(fOne fPlus fOne fEq fTwo)
+    //fAssert(fTwo fEq (fOne fPlus 1))
+    fAssert(fTwo fEq (1 fPlus fOne))
+    fAssert(fTwo fEq (fOne fPlus fOne))
+
+    //fEmpty(fIntNone fPlus 1 fEq fTwo)
+    fEmpty(1 fPlus fIntNone fEq fTwo)
+    fEmpty(fIntNone fPlus fOne fEq fTwo)
+    fEmpty(fOne fPlus fIntNone fEq fTwo)
+    fEmpty(fOne fPlus fOne fEq fNone) // Note that fNone works here, as well as fIntNone
+
+    //fAssert(1 fDiv 2 fEq 0)
+    //fAssert(fOne fDiv 2 fEq 0)
+    fAssert(1 fDiv fTwo fEq 0)
+    //fAssert(1 fDiv 2 fEq fZero)
+
+    fAssert(-fMinusOne fEq fOne)
+    fEmpty(-fIntNone fEq fOne)
+
+    fAssert(fMinusOne.fAbs fEq fOne)
+    fEmpty(fIntNone.fAbs fEq fOne)
+
+    fAssert(fOne.fSignum fEq fOne)
+    fAssert(fMinusOne.fSignum fEq fMinusOne)
+    fEmpty(fIntNone.fSignum fEq fOne)
+
+    fAssert(fZero fMax 1 fEq fOne)
+    fAssert(0 fMax fOne fEq fOne)
+    fAssert(fZero fPlus fOne fEq fOne)
+    fAssert(fOne fEq (fZero fMax 1))
+    fAssert(fOne fEq (0 fPlus fOne))
+    fAssert(fOne fEq (fZero fMax fOne))
+
+    fEmpty(fIntNone fMax 1 fEq fOne)
+    fEmpty(0 fMax fIntNone fEq fOne)
+    fEmpty(fIntNone fMax fOne fEq fOne)
+    fEmpty(fZero fMax fIntNone fEq fOne)
+    fEmpty(fZero fMax fOne fEq fNone)
+
+    fAssert(fZero fLt fOne)
+    fEmpty(fIntNone fLt fOne)
+    fEmpty(fZero fLt fIntNone)
+
+    // FilterOptionDouble
+
+    val fDoubleNone = new FilterOption[Double](None)
+
+    val fDoubleMinusOne = FilterOption(-1.0)
+    val fDoubleZero = FilterOption(0.0)
+    val fDoubleHalf = FilterOption(0.5)
+    val fDoubleOne = FilterOption(1.0)
+    val fDoubleTwo = FilterOption(2.0)
+
+    fAssert(0.0 fEq 0.0)
+    fAssert(fDoubleZero fEq 0.0)
+    fAssert(0.0 fEq fDoubleZero)
+    fEmpty(fDoubleZero fEq fNone)
+
+    fAssert(1.0 fPlus 1.0 fEq fDoubleTwo)
+    fAssert(fDoubleOne fPlus 1.0 fEq fDoubleTwo)
+    fAssert(1.0 fPlus fDoubleOne fEq fDoubleTwo)
+    fAssert(fDoubleOne fPlus fDoubleOne fEq fDoubleTwo)
+    fAssert(fDoubleTwo fEq (fDoubleOne fPlus 1.0))
+    fAssert(fDoubleTwo fEq (1.0 fPlus fDoubleOne))
+    fAssert(fDoubleTwo fEq (fDoubleOne fPlus fDoubleOne))
+
+    //fEmpty(fDoubleNone fPlus 1 fEq fDoubleTwo)
+    fEmpty(1.0 fPlus fDoubleNone fEq fDoubleTwo)
+    fEmpty(fDoubleNone fPlus fDoubleOne fEq fDoubleTwo)
+    fEmpty(fDoubleOne fPlus fDoubleNone fEq fDoubleTwo)
+    fEmpty(fDoubleOne fPlus fDoubleOne fEq fNone)
+
+    fAssert(1.0 fDiv 2.0 fEq 0.5)
+    fAssert(fDoubleOne fDiv 2.0 fEq 0.5)
+    fAssert(1.0 fDiv fDoubleTwo fEq 0.5)
+    fAssert(1.0 fDiv 2.0 fEq fDoubleHalf)
+
+    fAssert(-fDoubleMinusOne fEq fDoubleOne)
+    fEmpty(-fDoubleNone fEq fDoubleOne)
+
+    fAssert(fDoubleMinusOne.fAbs fEq fDoubleOne)
+    fEmpty(fDoubleNone.fAbs fEq fDoubleOne)
+
+    fAssert(fDoubleOne.fSignum fEq fOne)
+    fAssert(fDoubleMinusOne.fSignum fEq fMinusOne)
+    fEmpty(fDoubleNone.fSignum fEq fOne)
+
+    fAssert(fDoubleZero fMax 1.0 fEq fDoubleOne)
+    fAssert(0.0 fMax fDoubleOne fEq fDoubleOne)
+    fAssert(fDoubleZero fPlus fDoubleOne fEq fDoubleOne)
+    fAssert(fDoubleOne fEq (fDoubleZero fMax 1.0))
+    fAssert(fDoubleOne fEq (0.0 fPlus fDoubleOne))
+    fAssert(fDoubleOne fEq (fDoubleZero fMax fDoubleOne))
+
+    fEmpty(fDoubleNone fMax 1.0 fEq fDoubleOne)
+    fEmpty(0.0 fMax fDoubleNone fEq fDoubleOne)
+    fEmpty(fDoubleNone fMax fDoubleOne fEq fDoubleOne)
+    fEmpty(fDoubleZero fMax fDoubleNone fEq fDoubleOne)
+    fEmpty(fDoubleZero fMax fDoubleOne fEq fNone)
+
+    fAssert(fDoubleZero fLt fDoubleOne)
+    fEmpty(fDoubleNone fLt fDoubleOne)
+    fEmpty(fDoubleZero fLt fDoubleNone)
+
+    // FilterOptionInt and FilterOption Double
+
+    fAssert(0 fEq 0.0)
+    fAssert(0.0 fEq 0)
+    fAssert(0 fEq fDoubleZero)
+    fAssert(0.0 fEq fZero)
+    fAssert(fDoubleZero fEq 0)
+    fAssert(fZero fEq 0.0)
+    fAssert(fTwo fEq fDoubleTwo)
+    fAssert(fDoubleTwo fEq fTwo)
+
+    fAssert(fOne fPlus 1.0 fEq fTwo)
+    fAssert(1.0 fPlus fOne fEq fTwo)
+    fAssert(fOne fPlus 1.0 fEq fDoubleTwo)
+    fAssert(1.0 fPlus fOne fEq fDoubleTwo)
+    fAssert(fDoubleOne fPlus fOne fEq fTwo)
+    fAssert(fOne fPlus fDoubleOne fEq fTwo)
+    fAssert(fDoubleOne fPlus fOne fEq fDoubleTwo)
+    fAssert(fOne fPlus fDoubleOne fEq fDoubleTwo)
+
+    fAssert(1 fDiv 2.toDouble fEq .5)
+    fAssert(1 fDiv 2.toDouble fEq fDoubleHalf)
+
+    //fAssert(1.toDouble fDiv 2 fEq .5)
+    //fAssert(1.toDouble fDiv 2 fEq fDoubleHalf)
+
+    fAssert(1 fDiv fTwo.toDouble fEq .5)
+    fAssert(1.toDouble fDiv fTwo fEq .5)
+
   }
 
   @Test def test() {
@@ -82,82 +272,20 @@ class FilterSuite extends SparkSuite {
     assert(!highGQ.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
     assert(highGQ.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
 
-    val vds2 = TestRDDBuilder.buildRDD(1, 1, sc)
-    val state2 = State("", sc, sqlContext, vds2)
-    val nVariants = vds2.nVariants
+    /*
+    forAll { (i: Int, j: Int)
+    FilterOption(i < j) == i < FilterOption(j) }
+    FilterOption(None) < 5 == FilterOption(None)
+    keep, remove
+    filter options work in Eval (just some)
 
-    /* forAll { (i: Int, j: Int)
-      FilterOption(i < j) == i < FilterOption(j) } */
-    /* FilterOption(None) < 5 == FilterOption(None) */
-    // keep, remove
-    // filter options work in Eval (just some)
+    FilterGenotype(val g: Genotype) extends AnyVal { def gq: FilterOption[Int] = filterOptionFromOption(g.gq) }
+    use FilterGenotype in evaluator
+    test these in both cases
+    */
 
-    // FilterGenotype(val g: Genotype) extends AnyVal { def gq: FilterOption[Int] = filterOptionFromOption(g.gq) }
-    // use FilterGenotype in evaluator
-    // test these in both cases
-
-
-    def eval(cond: String): Option[Boolean] = new Evaluator[FilterOption[Boolean]] (
-      "{ import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods.FilterOption; " +
-        cond + " }: org.broadinstitute.hail.methods.FilterOption[Boolean]")
-      .eval().ot
-
-    assert(eval("true").get)
-    assert(eval("new FilterOption(Some(true))").get)
-    assert(eval("new FilterOption(None)").isEmpty)
-    assert(eval("new FilterOption(None) fEq new FilterOption(None)").isEmpty)
-    assert(eval("new FilterOption[Boolean](None) fEq true").isEmpty)
-
-
-    assert(eval("true fEq true").get)
-    assert(eval("new FilterOption(Some(true)) fEq true").get)
-
-    assert(eval("true fEq new FilterOption(Some(true))").get) //FIXME
-
-    assert(eval("new FilterOption(Some(true)) fEq new FilterOption(Some(true))").get)
-
-//    assert(eval("true fEq new FilterOption(None)").isEmpty)
-//    assert(eval("new FilterOption(None) fEq true").isEmpty)
-//    assert(eval("new FilterOption(None) fEq new FilterOption(Some(true))").isEmpty)
-//    assert(eval("new FilterOption(Some(true)) fEq new FilterOption(None)").isEmpty)
-//
-//    assert(eval("false fEq new FilterOption(None)").isEmpty)
-//    assert(eval("true fEq new FilterOption(true)").get)
-//    assert(eval("new FilterOption(None) fEq new FilterOption(None)").isEmpty)
-
-
-//    assert(eval("Array(1,2).size fEq 2"))
-
-    assert(FilterVariants.run(state2, Array("--remove", "-c", "true fEq true"))
-      .vds.nVariants == 0)
-
-//    assert(FilterVariants.run(state2, Array("--remove", "-c", "true fEq new FilterOption(Some(true))"))
-//      .vds.nVariants == 0)
-
-    assert(FilterVariants.run(state2, Array("--remove", "-c", "true"))
-      .vds.nVariants == 0)
-
-    assert(FilterVariants.run(state2, Array("--keep", "-c", "5 fEq 5"))
-      .vds.nVariants == 1)
-
-    assert(FilterVariants.run(state2, Array("--remove", "-c", "5.0 fEq 5.0"))
-      .vds.nVariants == 0)
-
-    assert(FilterVariants.run(state2, Array("--keep", "-c", "5 == 5.0"))
-      .vds.nVariants == 1)
-
-    assert(FilterVariants.run(state2, Array("--remove", "-c", "5.0 fEq 5"))
-      .vds.nVariants == 0)
-
-    assert(FilterVariants.run(state2, Array("--remove", "-c", "5 fEq 5.0"))
-      .vds.nVariants == 0)
-//
-//    assert(FilterVariants.run(state2, Array("--remove", "-c", "val a = new FilterOption[Int](Some(4)); val b = new FilterOption[Int](Some(5)); a > b"))
-//      .vds.nVariants == nVariants)
-//
-//    assert(FilterVariants.run(state2, Array("--remove", "-c", "new FilterOption[Int](Some(4)) > 5"))
-//      .vds.nVariants == nVariants)
-
-
+    //val vds2 = TestRDDBuilder.buildRDD(1, 1, sc)
+    //val state2 = State("", sc, sqlContext, vds2)
+    //val nVariants = vds2.nVariants
   }
 }
