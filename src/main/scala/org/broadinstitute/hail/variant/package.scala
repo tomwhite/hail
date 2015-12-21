@@ -4,7 +4,6 @@ import org.apache.spark.rdd.RDD
 import scala.language.implicitConversions
 import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
 
-import scala.reflect.ClassTag
 
 package object variant {
   type VariantDataset = VariantSampleMatrix[Genotype]
@@ -22,7 +21,6 @@ package object variant {
 
   implicit def toRichIterableGenotype(it: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(it)
   implicit def toRichVDS(vsm: VariantDataset): RichVDS = new RichVDS(vsm)
-
 
   // type VariantSampleMatrix[T, S] = managed.ManagedVSM[T, S]
   // type VariantSampleMatrix[T, S <: Iterable[(Int, T)]] = sparky.SparkyVSM[T, S]

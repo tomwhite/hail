@@ -50,7 +50,7 @@ class JoinSuite extends SparkSuite {
       assert(mergedVSM.localSamples.length == nSamples)
       assert(mergedVSM.rdd.filter{case (v,g) => g.size == nSamples}.count == nVariants)
 
-      //println(mergedVSM.metadata.contigLength.mkString("\n")) //need to test the contigLength merge
+      //need to test the contigLength merge at some point
 
       val vsm1SampleIdsLocal = vsm1.sampleIds
       val vsm2SampleIdsLocal = vsm2.sampleIds

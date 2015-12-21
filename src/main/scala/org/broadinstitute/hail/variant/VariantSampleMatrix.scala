@@ -230,7 +230,7 @@ private object JoinUtils {
   }
 }
 
-object VariantSampleMatrix extends Serializable {
+object VariantSampleMatrix {
   def apply(metadata: VariantMetadata,
             rdd: RDD[(Variant, Iterable[Genotype])]): VariantDataset = {
     new VariantSampleMatrix(metadata, rdd)
@@ -256,7 +256,6 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   (implicit tct: ClassTag[T],
     vct: ClassTag[Variant]) {
 
-  //import VariantSampleMatrix._
   import JoinUtils._
   def this(metadata: VariantMetadata, rdd: RDD[(Variant, Iterable[T])])
     (implicit tct: ClassTag[T]) =
