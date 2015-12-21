@@ -4,7 +4,6 @@ import org.apache.spark.rdd.RDD
 import scala.language.implicitConversions
 import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
 
-
 package object variant {
   type VariantDataset = VariantSampleMatrix[Genotype]
 
