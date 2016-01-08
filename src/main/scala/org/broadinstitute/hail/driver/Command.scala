@@ -4,6 +4,7 @@ import breeze.linalg.SparseVector
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
+import org.broadinstitute.hail.methods.SparseStats
 import org.broadinstitute.hail.variant.{Variant, VariantDataset}
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
@@ -13,7 +14,7 @@ case class State(installDir: String,
   sqlContext: SQLContext,
   // FIXME make option
   vds: VariantDataset,
-  hack: RDD[(Variant, SparseVector[Int])] = null) {
+  sparseStats: RDD[(Variant, SparseStats)] = null) {
   def hadoopConf = vds.sparkContext.hadoopConfiguration
 }
 

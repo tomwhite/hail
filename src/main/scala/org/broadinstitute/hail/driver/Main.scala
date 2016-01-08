@@ -57,6 +57,7 @@ object Main {
       }
     */
     val commands = Array(
+      AddSparseStats,
       Cache,
       Count,
       DownsampleVariants,
@@ -68,6 +69,7 @@ object Main {
       GQByDP,
       Import,
       LinearRegressionCommand,
+      LinearRegressionFromSparseStatsCommand,
       MendelErrorsCommand,
       PCA,
       Read,

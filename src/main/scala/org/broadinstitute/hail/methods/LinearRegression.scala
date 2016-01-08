@@ -168,6 +168,60 @@ object LinearRegression {
   }
 }
 
+object LinearRegressionFromSparseStats {
+  def name = "LinearRegressionFromSparseStats"
+
+  def apply(ss: RDD[(Variant, SparseStats)], ped: Pedigree, cov: CovariateData): LinearRegression = {
+    require(ped.trios.forall(_.pheno.isDefined))
+    val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
+
+    val n = cov.data.rows
+    val k = cov.data.cols
+    val d = n - k - 2
+    if (d < 1)
+      throw new IllegalArgumentException(n + " samples and " + k + " covariates implies " + d + " degrees of freedom.")
+
+    val sc = ss.sparkContext
+    val sampleCovRowBc = sc.broadcast(sampleCovRow)
+    val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
+    val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
+
+    val samplePheno = ped.samplePheno
+    val yArray = (0 until n).flatMap(cr => samplePheno(cov.covRowSample(cr)).map(_.toString.toDouble)).toArray
+    val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
+    val y = DenseVector[Double](yArray)
+    val qt = qr.reduced.justQ(covAndOnesVector).t
+    val qty = qt * y
+
+    val yBc = sc.broadcast(y)
+    val qtBc = sc.broadcast(qt)
+    val qtyBc = sc.broadcast(qty)
+    val yypBc = sc.broadcast((y dot y) - (qty dot qty))
+
+    new LinearRegression(ss.mapValues { stats => {
+      val SparseStats(x, xx, xy, nMissing) = stats
+
+      if (x.length == 0 || (x.length == n && xx == n) || xx == 4 * n)
+        None
+      else {
+        val qtx = qtBc.value * x
+        val qty = qtyBc.value
+        val xxp: Double = xx - (qtx dot qtx)
+        val xyp: Double = xy - (qtx dot qty)
+        val yyp: Double = yypBc.value
+
+        val b: Double = xyp / xxp
+        val se = math.sqrt((yyp / xxp - b * b) / d)
+        val t = b / se
+        val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+
+        Some(LinRegStats(nMissing, b, se, t, p))
+      }
+    } }
+    )
+  }
+}
+
 case class LinearRegression(lr: RDD[(Variant, Option[LinRegStats])]) {
   def write(filename: String) {
     def toLine(v: Variant, olrs: Option[LinRegStats]) = olrs match {
