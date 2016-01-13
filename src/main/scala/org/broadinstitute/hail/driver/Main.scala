@@ -74,6 +74,7 @@ object Main {
       Repartition,
       SampleQC,
       VariantQC,
+      VariantEffectCommand,
       Write,
       ExportVariants,
       ExportSamples
