@@ -377,7 +377,7 @@ object SampleQC extends Command {
         s.write(SampleQCCombiner.header)
         s.write("\n")
       }
-      
+
       hadoopDelete(output, state.hadoopConf, recursive = true)
       results(vds).map { case (s, comb) =>
           val sb = new StringBuilder()
