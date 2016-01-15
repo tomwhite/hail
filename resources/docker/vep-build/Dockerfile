@@ -36,4 +36,5 @@ WORKDIR /opt/samtools-1.2
 RUN make
 
 # Needed for pulling data out of Vep
-RUN cpan install JSON:XS
+RUN cpan install JSON
+

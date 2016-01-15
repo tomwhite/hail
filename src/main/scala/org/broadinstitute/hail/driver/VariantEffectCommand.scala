@@ -16,7 +16,8 @@ object VariantEffectCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    Vep(state.vds,options.vepConfig)
+    new Vep(options.vepConfig)
+        .apply(state.vds)
         .take(1)
         .foreach(println)
 
