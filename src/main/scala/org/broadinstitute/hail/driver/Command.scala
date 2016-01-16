@@ -13,14 +13,14 @@ case class State(installDir: String,
   vds: VariantDataset) {
   def hadoopConf = vds.sparkContext.hadoopConfiguration
 }
+class BaseOptions extends Serializable {
+  @Args4jOption(name = "-h", aliases = Array("--help"), help = true, usage = "Print usage and exit")
+  var printUsage: Boolean = false
+}
 
 // FIXME: HasArgs vs Command
 abstract class Command {
 
-  class BaseOptions {
-    @Args4jOption(name = "-h", aliases = Array("--help"), help = true, usage = "Print usage and exit")
-    var printUsage: Boolean = false
-  }
 
   type Options <: BaseOptions
 

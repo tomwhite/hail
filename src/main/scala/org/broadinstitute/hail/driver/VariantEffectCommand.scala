@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.methods.{Vep, CovariateData, LinearRegression, Pedigree}
+import org.broadinstitute.hail.methods._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object VariantEffectCommand extends Command {
@@ -16,10 +16,15 @@ object VariantEffectCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    new Vep(options.vepConfig)
-        .apply(state.vds)
+    new DockerizedAnnotator[Vep,Options]
+        .apply(state.vds,options)
         .take(1)
         .foreach(println)
+    
+//    new Vep(options.vepConfig)
+//        .apply(state.vds)
+//        .take(1)
+//        .foreach(println)
 
     state
   }

@@ -4,13 +4,15 @@ import java.io.{PrintWriter, Serializable}
 
 import org.apache.commons.io.FileUtils
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.driver.BaseOptions
 import org.broadinstitute.hail.variant.{Genotype, Variant}
 
 /**
  * Created by david on 1/14/16 at 11:55 PM  
  */
-abstract class DockerizedVariantAnnotator(name:String) extends DockerRunner with Serializable {
+abstract class DockerAnnotatorConfiguration[O<:BaseOptions](name:String) extends DockerRunner with Serializable {
   type V = (Variant, AnnotationData, Iterable[Genotype])
+  var options: O = _
 
   val vcfin = s"$tmpDir/$uuid-in.vcf"
 

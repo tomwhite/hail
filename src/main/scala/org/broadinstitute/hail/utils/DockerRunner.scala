@@ -2,6 +2,7 @@ package org.broadinstitute.hail.utils
 
 import java.io.{File, PrintWriter}
 import java.util.UUID
+import scala.sys.process._
 
 /**
  * Created by david on 1/14/16 at 11:54 PM  
