@@ -1,21 +1,24 @@
-package org.broadinstitute.hail.methods
+package org.broadinstitute.hail.driver
 
-import java.io._
-import java.util.UUID
-import org.apache.commons.io.FileUtils
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.annotations.AnnotationData
-import org.broadinstitute.hail.driver.VariantEffectCommand
-import org.broadinstitute.hail.utils.{DockerAnnotatorConfiguration}
-import org.broadinstitute.hail.variant._
-import scala.sys.process._
+import java.io.FileInputStream
+
+import org.kohsuke.args4j.{Option => Args4jOption}
+
 import scala.io.Source
-import scala.util.parsing.json._
-import scala.language.postfixOps
+import scala.util.parsing.json.JSON
 
+object VariantEffectAnnotator extends DockerizedAnnotator{
 
-class Vep extends DockerAnnotatorConfiguration[VariantEffectCommand.Options]("Vep") {
+  def name = "vep"
+  def description = "Run VEP"
+
+  class Options extends BaseOptions {
+    @Args4jOption(required = true, name = "-vc", aliases = Array("--vep-config"), usage = "Vep configuration directory")
+    var vepConfig: String = _
+
+  }
+  def newOptions = new Options
+  
   override def dockerImage = "vep-v1"
 
   val jsonOut = s"$tmpDir/$uuid-out.json"
@@ -26,7 +29,7 @@ class Vep extends DockerAnnotatorConfiguration[VariantEffectCommand.Options]("Ve
        |#!/bin/bash
        |ln -s $host${options.vepConfig} ~/.vep
        |export PATH=$$PATH:/opt/samtools-1.2/:/opt/ensembl-tools-release-83/scripts/variant_effect_predictor/
-       |variant_effect_predictor.pl --everything -i $host$vcfin -o $host$jsonOut --no_stats --format vcf --json --cache --offline
+        |variant_effect_predictor.pl --everything -i $host$vcfin -o $host$jsonOut --no_stats --format vcf --json --cache --offline
         """.stripMargin.trim
   }
 
@@ -38,4 +41,5 @@ class Vep extends DockerAnnotatorConfiguration[VariantEffectCommand.Options]("Ve
         .map(_.asInstanceOf[Map[String, Any]])
         .map(_.mapValues(_.toString)) // TODO: Remove this once AnnotationData supports hierarchies
   }
+
 }

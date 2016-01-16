@@ -1,20 +1,32 @@
-package org.broadinstitute.hail.utils
+package org.broadinstitute.hail.driver
 
 import java.io.{PrintWriter, Serializable}
 
 import org.apache.commons.io.FileUtils
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.driver.BaseOptions
+import org.broadinstitute.hail.utils.DockerRunner
 import org.broadinstitute.hail.variant.{Genotype, Variant}
+import org.broadinstitute.hail.annotations._
+
 
 /**
- * Created by david on 1/14/16 at 11:55 PM  
+ *   
  */
-abstract class DockerAnnotatorConfiguration[O<:BaseOptions](name:String) extends DockerRunner with Serializable {
+abstract class DockerizedAnnotator extends Command with DockerRunner with Serializable {
   type V = (Variant, AnnotationData, Iterable[Genotype])
-  var options: O = _
 
   val vcfin = s"$tmpDir/$uuid-in.vcf"
+
+  var options:Options = _
+
+  def run(state: State, options: Options): State = {
+    this.options=options
+    state.vds.rdd.mapPartitions(annotateAll)
+        .take(1)
+        .foreach(println)
+
+    state
+  }
+
 
   // Generate a VCF from the variants in this partition
   // This implementation does not add annotations. Subclasses can override if necessary
@@ -49,5 +61,6 @@ abstract class DockerAnnotatorConfiguration[O<:BaseOptions](name:String) extends
   }
 
   def readAnnotations(): Iterator[Map[String, String]]
+
 
 }

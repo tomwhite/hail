@@ -3,11 +3,14 @@ package org.broadinstitute.hail.utils
 import java.io.{File, PrintWriter}
 import java.util.UUID
 import scala.sys.process._
+import scala.language.postfixOps
 
 /**
- * Created by david on 1/14/16 at 11:54 PM  
+ * A low level trait with utilities for running scripts in docker containers.  
  */
-abstract class DockerRunner() {
+trait DockerRunner {
+  
+  // TODO This shouldn't be user.home, but unfortunately that's the only directory mountable via Boot2docker + MacOS
   val localTemp = System.getProperty("user.home") + "/hail.tmp/"
   val host = "/host"
   val uuid = UUID.randomUUID().toString.replace("-", "")
