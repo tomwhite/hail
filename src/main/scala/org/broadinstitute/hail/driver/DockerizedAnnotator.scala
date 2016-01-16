@@ -6,6 +6,7 @@ import org.apache.commons.io.FileUtils
 import org.broadinstitute.hail.utils.DockerRunner
 import org.broadinstitute.hail.variant.{Genotype, Variant}
 import org.broadinstitute.hail.annotations._
+import org.kohsuke.args4j.{Option => Args4jOption}
 
 
 /**
@@ -16,7 +17,15 @@ abstract class DockerizedAnnotator extends Command with DockerRunner with Serial
 
   val vcfin = s"$tmpDir/$uuid-in.vcf"
 
+  class DockerOptions extends BaseOptions {
+    @Args4jOption(required = false, name = "-docker",usage = "Docker image to use")
+    var dockerImageOption: String = defaultDockerImage
+  }
+
   var options:Options = _
+
+  def defaultDockerImage: String
+
 
   def run(state: State, options: Options): State = {
     this.options=options
