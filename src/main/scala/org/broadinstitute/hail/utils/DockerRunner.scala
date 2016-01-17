@@ -8,7 +8,7 @@ import scala.language.postfixOps
 /**
  * A low level trait with utilities for running scripts in docker containers.  
  */
-trait DockerRunner {
+trait DockerRunner extends Serializable{
   
   // TODO This shouldn't be user.home, but unfortunately that's the only directory mountable via Boot2docker + MacOS
   val localTemp = System.getProperty("user.home") + "/hail.tmp/"
