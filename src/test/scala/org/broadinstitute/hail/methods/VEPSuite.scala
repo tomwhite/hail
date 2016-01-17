@@ -9,7 +9,6 @@ class VEPSuite extends SparkSuite {
   @Test def test1() {
     val oldVds=LoadVCF(sc, "src/test/resources/sample.vcf")
     oldVds.rdd.cache
-    val (oldVar, oldAnnot, oldGeno) = oldVds.rdd.take(1).head
     val newVds = annotatePartitions(
       oldVds,
       newOptions
@@ -17,9 +16,13 @@ class VEPSuite extends SparkSuite {
     
     assertResult(oldVds.rdd.count)(newVds.rdd.count)
 
-    val (newVar, newAnnot, newGeno) = newVds.rdd.take(1).head
+    val (oldVar, oldAnnot, oldGeno) = oldVds.rdd.first
+    val (newVar, newAnnot, newGeno) = newVds.rdd.first
+
     assertResult(oldVar)(newVar)
     assertResult(Set("info"))(oldAnnot.maps.keys)
     assertResult(Set("info","vep"))(newAnnot.maps.keys)
+    
+    
   }
 }
