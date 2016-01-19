@@ -47,6 +47,9 @@ object Import extends Command {
       } else
         fatal("unknown input file type")
 
-    state.copy(vds = newVDS)
+    if (state.vds == null)
+      state.copy(vds = newVDS)
+    else
+      state.copy(vds2 = Option(newVDS))
   }
 }

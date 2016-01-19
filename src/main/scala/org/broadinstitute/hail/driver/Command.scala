@@ -10,7 +10,7 @@ case class State(installDir: String,
   sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
-  vds: VariantDataset) {
+  vds: VariantDataset, vds2: Option[VariantDataset] = None) {
   def hadoopConf = vds.sparkContext.hadoopConfiguration
 }
 

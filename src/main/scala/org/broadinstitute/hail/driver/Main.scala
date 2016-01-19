@@ -58,6 +58,7 @@ object Main {
     */
     val commands = Array(
       Cache,
+      Concordance,
       Count,
       DownsampleVariants,
       ExportVCF,
