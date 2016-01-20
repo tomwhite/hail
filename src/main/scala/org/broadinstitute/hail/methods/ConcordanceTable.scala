@@ -60,7 +60,7 @@ class ConcordanceTable extends Serializable {
 
   val typeNames = Map(Some(HomRef) -> "HomRef", Some(Het) -> "Het", Some(HomVar) -> "HomVar", Some(NoCall) -> "NoCall", None -> "None")
 
-  def labels: Iterable[String] = for (i <- genotypeTypeOrder; j <- genotypeTypeOrder) yield typeNames.get(i).get + "." + typeNames.get(j).get
+  def labels: Iterable[String] = for (i <- genotypeTypeOrder; j <- genotypeTypeOrder) yield typeNames.get(i).get + "_" + typeNames.get(j).get
 
   def counts: Iterable[Long] = for ((i,j) <- table.indices) yield table(i,j)
 
