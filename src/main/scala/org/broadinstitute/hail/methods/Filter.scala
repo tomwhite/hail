@@ -579,7 +579,7 @@ object Filter {
     }
 
   val nameMap: Map[String, String] = Map(
-    "toRealInt" -> "toInt", "toRealDouble" -> "toDouble", "mkRealString" -> "mkString",
+    "toRealInt" -> "toInt", "toRealDouble" -> "toDouble", "toRealLong" -> "toLong", "mkRealString" -> "mkString",
     "mkString" -> "fMkString", "sameElements" -> "fSameElements",
     "$eq$eq" -> "fEq", "$bang$eq" -> "fNotEq", "$amp$amp" -> "fAnd", "$bar$bar" -> "fOr",
     "apply" -> "fApply", "union" -> "fUnion", "intersect" -> "fIntersect", "diff" -> "fDiff",

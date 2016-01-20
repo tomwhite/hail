@@ -69,6 +69,7 @@ object AnnotationClassBuilder {
     def realConversion(s: String) = s match {
       case "toDouble" => "toRealDouble"
       case "toInt" => "toRealInt"
+      case "toLong" => "toRealLong"
       case _ => s
     }
     val internalClasses = sigs.maps.map {

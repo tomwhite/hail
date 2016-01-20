@@ -58,7 +58,7 @@ class ConcordanceTable extends Serializable {
 
   def genotypeTypeOrder: Array[Option[GenotypeType]] = Array(Some(HomRef), Some(Het), Some(HomVar), Some(NoCall), None)
 
-  val typeNames = Map(Some(HomRef) -> "HomRef", Some(Het) -> "Het", Some(HomVar) -> "HomVar", Some(NoCall) -> "NoCall", None -> "None")
+  val typeNames = Map(Some(HomRef) -> "HomRef", Some(Het) -> "Het", Some(HomVar) -> "HomAlt", Some(NoCall) -> "NoCall", None -> "None")
 
   def labels: Iterable[String] = for (i <- genotypeTypeOrder; j <- genotypeTypeOrder) yield typeNames.get(i).get + "_" + typeNames.get(j).get
 
