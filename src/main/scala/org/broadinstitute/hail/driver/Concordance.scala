@@ -11,10 +11,8 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 object Concordance extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = false, name = "-o", aliases = Array("--output"), depends = Array("--tmpdir"), usage = "Output file")
+    @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Output file root name")
     var output: String = _
-    @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "Directory for temporary files")
-    var tmpdir: String = _
     @Args4jOption(required = false, name = "-s", aliases = Array("--store"),
       usage = "Store concordance output in vds annotations", forbids = Array("output"))
     var store: Boolean = false
@@ -89,7 +87,7 @@ object Concordance extends Command {
       gcomb.mkString(sep)
     }
 
-    def writeSampleConcordance(tmpDir: String, filename: String, sep: String = "\t") {
+    def writeSampleConcordance(filename: String, sep: String = "\t") {
       val sampleIds = mergedVSM.sampleIds
       val gcomb = genotypeCombinations(sep)
       val header = s"ID${sep}nVar${sep}Concordance${sep}$gcomb\n"
@@ -107,10 +105,10 @@ object Concordance extends Command {
           sb.append("\n")
           sb.result()
         }
-        .writeTableSingleFile(tmpDir, filename, header, deleteTmpFiles = true)
+        .writeTable(filename, Some(header), deleteTmpFiles = true)
     }
 
-    def writeVariantConcordance(tmpDir: String, filename: String, sep: String = "\t"): Unit = {
+    def writeVariantConcordance(filename: String, sep: String = "\t"): Unit = {
       val gcomb = genotypeCombinations(sep)
       val header = s"Variant${sep}nSamples${sep}Concordance${sep}$gcomb\n"
 
@@ -127,7 +125,7 @@ object Concordance extends Command {
           sb.append("\n")
           sb.result()
         }
-        .writeTableSingleFile(tmpDir, filename, header, deleteTmpFiles = true)
+        .writeTable(filename, Some(header), deleteTmpFiles = true)
     }
 
     val overallCT = sampleConcordance.fold(0, new ConcordanceTable)((a, b) => (a._1 + b._1, a._2.merge(b._2)))._2
@@ -166,8 +164,8 @@ object Concordance extends Command {
         )
       )
     } else {
-      writeSampleConcordance(options.tmpdir, options.output + ".sconc.txt", "\t")
-      writeVariantConcordance(options.tmpdir, options.output + ".vconc.txt", "\t")
+      writeSampleConcordance(options.output + ".sconc.txt", "\t")
+      writeVariantConcordance(options.output + ".vconc.txt", "\t")
       state
     }
   }

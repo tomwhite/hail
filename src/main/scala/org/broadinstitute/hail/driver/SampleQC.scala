@@ -374,12 +374,6 @@ object SampleQC extends Command {
               .map { case (oldAnno, newAnno) => oldAnno ++ newAnno})))
 
     } else {
-      writeTextFile(output + ".header", state.hadoopConf) { s =>
-        s.write("sampleID\t")
-        s.write(SampleQCCombiner.header)
-        s.write("\n")
-      }
-
       hadoopDelete(output, state.hadoopConf, recursive = true)
       r.map { case (s, comb) =>
           val sb = new StringBuilder()
@@ -387,7 +381,7 @@ object SampleQC extends Command {
           sb += '\t'
           comb.emit(sb)
           sb.result()
-        }.saveAsTextFile(output)
+        }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
 
       state
     }

@@ -5,6 +5,7 @@ import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver.{ExportVariants, ExportSamples, Concordance, State}
 import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
+import scala.io.Source
 
 class ConcordanceSuite extends SparkSuite {
   @Test def testConcordanceTable() = {
@@ -66,12 +67,14 @@ class ConcordanceSuite extends SparkSuite {
     val numTotal = 34600
     val numConcordant = 27185
 
+    val truthSampleConcordance = "src/test/resources/sampleConcordanceTruthData.txt"
+    val truthVariantConcordance = "src/test/resources/variantConcordanceTruthData.txt"
     val vcf1 = "src/test/resources/multipleChromosomes.vcf"
     val vcf2 = "src/test/resources/multipleChromosomesIdShuffle.vcf"
 
     val vds1 = LoadVCF(sc, vcf1, nPartitions = Some(10))
     val vds2 = LoadVCF(sc, vcf2, nPartitions = Some(10))
-    val state = State("", sc, sqlContext, vds = vds1, vds2 = Some(vds2))
+    val state = State(sc, sqlContext, vds = vds1, vds2 = Some(vds2))
 
     val state2 = Concordance.run(state, Array("-s"))
 
@@ -91,7 +94,19 @@ class ConcordanceSuite extends SparkSuite {
 
     ExportSamples.run(state2, Array("-c", sampleExportItems, "-o", "/tmp/sampleConcordance.txt"))
     ExportVariants.run(state2, Array("-c", variantExportItems, "-o", "/tmp/variantConcordance.txt"))
-    
-    assert(1 == 2)
+
+    // read in sampleConcordance and compare to truth data
+    // hail output has no header
+    val hailSampleOutput = Source.fromFile("/tmp/sampleConcordance.txt").getLines.map(_.split("\t")).map(data => (data(0),data.drop(1).mkString("\t"))).toMap
+    val pythonSampleOutput = Source.fromFile(truthSampleConcordance).getLines.drop(1).map(_.split("\t")).map(data => (data(0),data.drop(1).mkString("\t"))).toMap
+    assert(hailSampleOutput.forall{case (id, data) => data == pythonSampleOutput(id)})
+    assert(pythonSampleOutput.forall{case (id, data) => data == hailSampleOutput(id)})
+
+    // read in variantConcordance and compare to truth data
+    // hail output has no header
+    val hailVariantOutput = Source.fromFile("/tmp/variantConcordance.txt").getLines.map(_.split("\t")).map(data => (data(0),data.drop(1).mkString("\t"))).toMap
+    val pythonVariantOutput = Source.fromFile(truthVariantConcordance).getLines.drop(1).map(_.split("\t")).map(data => (data(0),data.drop(1).mkString("\t"))).toMap
+    assert(hailVariantOutput.forall{case (id, data) => data == pythonVariantOutput(id)})
+    assert(pythonVariantOutput.forall{case (id, data) => data == hailVariantOutput(id)})
   }
 }
