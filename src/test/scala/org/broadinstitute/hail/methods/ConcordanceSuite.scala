@@ -60,8 +60,27 @@ class ConcordanceSuite extends SparkSuite {
     assert(ct3.getCount(Some(Genotype(2, (0, 0), 0, (0, 0, 0))), Some(Genotype(-1, (0, 0), 0, (0, 0, 0)))) == 5)
   }
 
+  @Test def testIdenticalVCF() = {
+    val vcf1 = "src/test/resources/multipleChromosomes.vcf"
+    val vcf2 = "src/test/resources/multipleChromosomes.vcf"
+
+    val vds1 = LoadVCF(sc, vcf1, nPartitions = Some(10))
+    val vds2 = LoadVCF(sc, vcf2, nPartitions = Some(10))
+    val state = State(sc, sqlContext, vds = vds1, vds2 = Some(vds2))
+
+    val state2 = Concordance.run(state, Array("-s"))
+
+    val sampleExportItems = "s.id, sa.conc.concrate"
+
+    val variantExportItems = "v, va.conc.concrate"
+
+    assert(state2.vds.metadata.sampleAnnotations.forall{sa => sa.getInMap("conc","concrate").get.toDouble == 1.00})
+    assert(state2.vds.variantsAndAnnotations.collectAsMap.forall{case (v,va) => va.getInMap("conc","concrate").get.toDouble == 1.00})
+  }
+
   @Test def testConcordanceResults() = {
 
+    // these are numbers from PLINK v1.9
     val overallConc = 0.81307
     val numCalledBoth = 33435
     val numTotal = 34600
