@@ -104,58 +104,38 @@ object BlockedStats extends Command {
       .fold((new StatCounter(), 0)) { case ((sc1, nClose1), (sc2, nClose2)) => (sc1.merge(sc2), nClose1 + nClose2) }
     println(s"variantDensitySC = $variantDensitySC, nClose = $nClose")
 
-    val (n, save, dpHist, gqHist) = vds.mapWithKeys { case (v, s, g) =>
-      ((v.contig, s), (v.start, g.gt, g.dp, g.gq))
+    val (n, save) = vds.mapWithKeys { case (v, s, g) =>
+      ((v.contig, s), (v.start, g.gt, g.gq))
     }.groupByKey()
       .mapValues { c =>
-        val sorted = c.toArray.sortWith { case ((s1, _, _, _), (s2, _, _, _)) => s1 < s2 }
+        val sorted = c.toArray.sortWith { case ((s1, _, _), (s2, _, _)) => s1 < s2 }
         val it = sorted.iterator
         var n: Long = 0
         var save: Long = 0
-        val dpHist = new Histogram()
-        val gqHist = new Histogram()
         if (it.hasNext) {
           var prev = it.next()
           while (it.hasNext) {
             val next = it.next()
             val dstart = next._1 - prev._1
+            assert(dstart >= 0)
 
             if (dstart < readLength) {
               n += 1
               if (prev._2 == next._2
-                && prev._4.map(gqBin) == next._4.map(gqBin))
+                && prev._3.map(gqBin) == next._3.map(gqBin))
                 save += 1
-
-              prev._3.map { dpx1 =>
-                next._3.map { dpx2 =>
-                  val ddp = (dpx2 - dpx1).abs.min(99)
-                  dpHist.merge(dstart, ddp)
-                }
-              }
-
-              prev._4.map { gqx1 =>
-                next._4.map { gqx2 =>
-                  val dgq = (gqx2 - gqx1).abs.min(99)
-                  gqHist.merge(dstart, dgq)
-                }
-              }
             }
 
             prev = next
           }
         }
-        (n, save, dpHist, gqHist)
+        (n, save)
       }.map(_._2)
-      .fold((0L, 0L, new Histogram(), new Histogram())) {
-        case ((n1, save1, dpHist1, gqHist1), (n2, save2, dpHist2, gqHist2)) =>
-          (n1 + n2, save1 + save2, dpHist1.merge(dpHist2), gqHist1.merge(gqHist2))
+      .fold((0L, 0L)) {
+        case ((n1, save1), (n2, save2)) =>
+          (n1 + n2, save1 + save2)
       }
     println(s"n = $n, save = $save")
-    println("dpHist:")
-    dpHist.print()
-
-    println("gqHist:")
-    gqHist.print()
 
     state
   }
