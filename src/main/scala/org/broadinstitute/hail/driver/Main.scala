@@ -156,6 +156,7 @@ object Main {
     */
 
     val commands = Array(
+      BlockedStats,
       Cache,
       Count,
       DownsampleVariants,
