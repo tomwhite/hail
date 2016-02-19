@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.variant.Genotype
 import scala.collection.mutable
 
 /*
@@ -104,6 +105,47 @@ object BlockedStats extends Command {
       .fold((new StatCounter(), 0)) { case ((sc1, nClose1), (sc2, nClose2)) => (sc1.merge(sc2), nClose1 + nClose2) }
     println(s"variantDensitySC = $variantDensitySC, nClose = $nClose")
 
+    val nLocalSamples = vds.nLocalSamples
+    val (n, save) = vds.rdd.mapPartitions { it =>
+      var n: Long = 0
+      var save: Long = 0
+      var prevContig: String = null
+      var prevStart = 0
+      var prevGs: Array[Genotype] = null
+      if (it.hasNext) {
+        val (v, va, gs) = it.next()
+        prevContig = v.contig
+        prevStart = v.start
+        prevGs = gs.toArray
+        while (it.hasNext) {
+          val (v, va, gs) = it.next()
+
+          val nextGs = gs.toArray
+
+          if (prevContig == v.contig) {
+            val dstart = v.start - prevStart
+            assert(dstart >= 0)
+
+            if (dstart < readLength) {
+              for (i <- prevGs.indices) {
+                n += 1
+                if (prevGs(i).gt == nextGs(i).gt
+                  && prevGs(i).gq.map(gqBin) == nextGs(i).gq.map(gqBin))
+                  save += 1
+              }
+            }
+          }
+
+          prevContig = v.contig
+          prevStart = v.start
+          prevGs = nextGs
+        }
+      }
+
+      Iterator((n, save))
+    }.fold((0L, 0L)) { case ((n1, save1), (n2, save2)) => (n1 + n2, save1 + save2) }
+
+    /*
     val (n, save) = vds.mapWithKeys { case (v, s, g) =>
       ((v.contig, s), (v.start, g.gt, g.gq))
     }.groupByKey()
@@ -135,6 +177,7 @@ object BlockedStats extends Command {
         case ((n1, save1), (n2, save2)) =>
           (n1 + n2, save1 + save2)
       }
+      */
     println(s"n = $n, save = $save")
 
     state
