@@ -78,6 +78,8 @@ object BlockedStats extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+    
+    println(s"wasSplit = ${state.vds.metadata.wasSplit}")
 
     // density
     val (variantDensitySC, nClose) = vds.rdd.map { case (v, va, gs) =>
