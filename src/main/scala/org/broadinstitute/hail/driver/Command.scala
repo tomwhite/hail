@@ -1,13 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import breeze.linalg.SparseVector
-import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkException, SparkContext}
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.methods.SparseStats
-import org.broadinstitute.hail.variant.{Variant, VariantDataset}
-import org.broadinstitute.hail.FatalException
+import org.broadinstitute.hail.variant.Variant
 import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
