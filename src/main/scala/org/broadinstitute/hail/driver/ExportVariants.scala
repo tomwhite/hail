@@ -1,6 +1,8 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr.TVariant
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
@@ -33,32 +35,37 @@ object ExportVariants extends Command {
     val cond = options.condition
     val output = options.output
 
-    val (header, fields) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(cond, state.hadoopConf)
+    val symTab = Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType))
+    val a = new Array[Any](2)
+
+    val (header, fs) = if (cond.endsWith(".columns"))
+      ExportTSV.parseColumnsFile(symTab, a, cond, vds.sparkContext.hadoopConfiguration)
     else
-      ExportTSV.parseExpression(cond)
-
-    val makeString: (Variant, Annotations[String]) => String = {
-      val eve = new ExportVariantsEvaluator(fields, vas)
-      eve.typeCheck()
-      eve.apply
-    }
-
-    header.foreach { str =>
-      writeTextFile(output + ".header", state.hadoopConf) { s =>
-        s.write(str)
-        s.write("\n")
-      }
-    }
+      expr.Parser.parseExportArgs(symTab, a, cond)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     vds.variantsAndAnnotations
-      .map { case (v, va) => makeString(v, va) }
-      .saveAsTextFile(output)
+      .mapPartitions { it =>
+        val sb = new StringBuilder()
+        it.map { case (v, va) =>
+          sb.clear()
+          var first = true
+          fs.foreach { f =>
+            a(0) = v
+            a(1) = va.attrs
+            if (first)
+              first = false
+            else
+              sb += '\t'
+            sb.tsvAppend(f())
+          }
+          sb.result()
+        }
+      }.writeTable(output, header)
 
     state
   }
-
-
 }

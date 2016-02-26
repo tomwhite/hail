@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
@@ -36,6 +37,7 @@ object FilterSamples extends Command {
 
     val indexOfSample: Map[String, Int] = vds.sampleIds.zipWithIndex.toMap
 
+    val keep = options.keep
     val p = options.condition match {
       case f if f.endsWith(".sample_list") =>
         val samples = Source.fromInputStream(hadoopOpen(f, state.hadoopConf))
@@ -43,14 +45,19 @@ object FilterSamples extends Command {
           .filter(line => !line.isEmpty)
           .map(indexOfSample)
           .toSet
-        (s: Int, sa: AnnotationData) => samples.contains(s)
+        (s: Int, sa: Annotations) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
-        val cf = new FilterSampleCondition(c, vds.metadata.sampleAnnotationSignatures)
-        cf.typeCheck()
-
+        val symTab = Map(
+          "s" -> (0, expr.TSample),
+          "sa" -> (1, vds.metadata.sampleAnnotationSignatures.toExprType))
+        val a = new Array[Any](2)
+        val f: () => Any = expr.Parser.parse(symTab, a, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-        val keep = options.keep
-        (s: Int, sa: AnnotationData) => Filter.keepThis(cf(Sample(sampleIdsBc.value(s)), vds.metadata.sampleAnnotations(s)), keep)
+        (s: Int, sa: Annotations) => {
+          a(0) = sampleIdsBc.value(s)
+          a(1) = sa.attrs
+          Filter.keepThisAny(f(), keep)
+        }
     }
 
     state.copy(vds = vds.filterSamples(p))

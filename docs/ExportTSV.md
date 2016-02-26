@@ -1,4 +1,4 @@
-# Exporting to TSVs in Hail
+# Exporting to TSV
 
 Hail has three export modules which write to TSVs:
  - `exportsamples`
@@ -8,8 +8,8 @@ Hail has three export modules which write to TSVs:
 These three export modules take a condition argument (`-c`) similar to [filtering](Filtering.md) expressions, with a similar namespace as well.  However, the expression is not parsed as a boolean, but rather a comma-delimited list of fields or expressions to print.  These fields will be printed in the order they appear in the expression in the header and on each line.
 
 Command line arguments: 
- - `-c` -- export expression (see below) or .columns file
- - `-o` -- file path to which output should be written
+ - `-c | --condition <cond>` -- export expression (see below) or .columns file
+ - `-o | --output <file>` -- file path to which output should be written
 
 ## Export modules
 
@@ -19,12 +19,16 @@ Command line arguments:
 2. `exportvariants` will print one line per variant in the VDS.  The accessible namespace includes:
    - `v` (variant)
    - `va` (variant annotations)
-3. `exportgenotypes` will print one line per unique (variant, sample) in the VDS.   **WARNING: This is an operation with an output length of M x N.  Use it wisely if you value your gigabytes.** The accessible namespace includes:
+3. `exportgenotypes` will print one line per unique (variant, sample) in the VDS<sup>*</sup>.  The accessible namespace includes:
    - `g` (genotype)
    - `s` (sample)
    - `sa` (sample annotations)
    - `v` (variant)
    - `va` (variant annotations). 
+   
+<sup>*</sup>The `exportgenotypes` module does not print hom-ref or missing genotypes by default, in order to restrict the size of the file produced.  There are command line arguments to turn on these print modes:
+ - `--print-ref`
+ - `--print-missing`
    
 ## Designating output with .columns files
 
@@ -35,7 +39,7 @@ $ cat exportVariants.columns
 VARIANT	v
 PASS	va.pass
 FILTERS	va.filters
-MISSINGNESS	va.qc.nCalled.get.toDouble/(va.qc.nCalled.get + va.qc.nNotCalled.get)
+MISSINGNESS	1 - va.qc.callRate)
 ```
 
 ```
@@ -54,7 +58,7 @@ Much like [filtering](Filtering.md) modules, exporting allows flexible expressio
 
 
 ```
-exportvariants -c 'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = va.qc.nCalled.get.toDouble/(va.qc.nCalled.get + va.qc.nNotCalled.get)'
+exportvariants -c 'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate'
 ```
 
 ```
@@ -90,7 +94,9 @@ exportgenotypes -c 'v,s.id,g.gq'
  - `g.isNotCalled:    Boolean` -- true if genotype is not `./.`
  - `g.gq:                 Int` -- the value of the lowest non-zero PL, or 0 if `./.`
  - `g.nNonRef:            Int` -- the number of called alternate alleles
- - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution
+ - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5
+ - `g.pAB(theta):      Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean `theta`
+
  
 **Variant:** `v`
  - `v:                 String` -- String representation of a variant: looks like `CHROM_POS_REF_ALT`
