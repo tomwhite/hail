@@ -2,8 +2,13 @@ package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant.{AltAllele, Variant, Genotype}
+import org.objectweb.asm._
+import org.objectweb.asm.Opcodes._
 import scala.collection.mutable
 import scala.util.parsing.input.{Position, Positional}
+
+case class EmitContext(symTab: SymbolTable,
+  mv: MethodVisitor)
 
 object Type {
   val sampleFields = Map(
@@ -92,32 +97,69 @@ object DoubleNumericConversion extends NumericConversion[Double] {
   }
 }
 
-sealed abstract class Type
+sealed abstract class Type {
+  def loadOp: Int = ALOAD
+}
 
 case object TBoolean extends Type {
   override def toString = "Boolean"
+  override def loadOp: Int = ILOAD
 }
 
 case object TChar extends Type {
   override def toString = "Char"
 }
 
-abstract class TNumeric extends Type
+abstract class TNumeric extends Type {
+  def binOp(op: String): Int
+}
 
 case object TInt extends TNumeric {
   override def toString = "Int"
+
+  override def loadOp: Int = ILOAD
+  def binOp(op: String): Int = op match {
+    case "+" => IADD
+    case "-" => ISUB
+    case "*" => IMUL
+    case "/" => IDIV
+  }
 }
 
 case object TLong extends TNumeric {
   override def toString = "Long"
+
+  override def loadOp: Int = LLOAD
+  def binOp(op: String): Int = op match {
+    case "+" => LADD
+    case "-" => LSUB
+    case "*" => LMUL
+    case "/" => LDIV
+  }
 }
 
 case object TFloat extends TNumeric {
   override def toString = "Float"
+
+  override def loadOp: Int = FLOAD
+  def binOp(op: String): Int = op match {
+    case "+" => FADD
+    case "-" => FSUB
+    case "*" => FMUL
+    case "/" => FDIV
+  }
 }
 
 case object TDouble extends TNumeric {
   override def toString = "Double"
+
+  override def loadOp: Int = DLOAD
+  def binOp(op: String): Int = op match {
+    case "+" => DADD
+    case "-" => DSUB
+    case "*" => DMUL
+    case "/" => DDIV
+  }
 }
 
 case object TUnit extends Type {
@@ -186,7 +228,7 @@ object AST extends Positional {
       TInt
 
   def evalFlatCompose[T](c: EvalContext, subexpr: AST)
-                        (g: (T) => Option[Any]): () => Any = {
+    (g: (T) => Option[Any]): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -198,7 +240,7 @@ object AST extends Positional {
   }
 
   def evalCompose[T](c: EvalContext, subexpr: AST)
-                    (g: (T) => Any): () => Any = {
+    (g: (T) => Any): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -210,7 +252,7 @@ object AST extends Positional {
   }
 
   def evalCompose[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
-                         (g: (T1, T2) => Any): () => Any = {
+    (g: (T1, T2) => Any): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     () => {
@@ -227,7 +269,7 @@ object AST extends Positional {
   }
 
   def evalCompose[T1, T2, T3](c: EvalContext, subexpr1: AST, subexpr2: AST, subexpr3: AST)
-                             (g: (T1, T2, T3) => Any): () => Any = {
+    (g: (T1, T2, T3) => Any): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     val f3 = subexpr3.eval(c)
@@ -249,8 +291,8 @@ object AST extends Positional {
   }
 
   def evalComposeNumeric[T](c: EvalContext, subexpr: AST)
-                           (g: (T) => Any)
-                           (implicit convT: NumericConversion[T]): () => Any = {
+    (g: (T) => Any)
+    (implicit convT: NumericConversion[T]): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -263,8 +305,8 @@ object AST extends Positional {
 
 
   def evalComposeNumeric[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
-                                (g: (T1, T2) => Any)
-                                (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
+    (g: (T1, T2) => Any)
+    (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     () => {
@@ -283,14 +325,13 @@ object AST extends Positional {
 
 case class Positioned[T](x: T) extends Positional
 
+// FIXME put subexpressions in one place
 sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   var `type`: Type = null
 
   def this(posn: Position, subexpr1: AST) = this(posn, Array(subexpr1))
 
   def this(posn: Position, subexpr1: AST, subexpr2: AST) = this(posn, Array(subexpr1, subexpr2))
-
-  def eval(c: EvalContext): () => Any
 
   def typecheckThis(typeSymTab: SymbolTable): Type = typecheckThis()
 
@@ -300,6 +341,10 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
     subexprs.foreach(_.typecheck(typeSymTab))
     `type` = typecheckThis(typeSymTab)
   }
+
+  def eval(c: EvalContext): () => Any
+
+  def emit(c: EmitContext): Unit = throw new UnsupportedOperationException
 
   def parseError(msg: String): Nothing = ParserUtils.error(pos, msg)
 }
@@ -311,6 +356,15 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
   }
 
   override def typecheckThis(): Type = t
+
+  override def emit(c: EmitContext) {
+    t match {
+      case TInt =>
+        c.mv.visitLdcInsn(value.asInstanceOf[Int])
+      case TBoolean =>
+        c.mv.visitLdcInsn(value.asInstanceOf[Boolean])
+    }
+  }
 }
 
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
@@ -490,6 +544,14 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TSet(_), "isEmpty") => AST.evalCompose[Set[_]](c, lhs)(_.isEmpty)
     case (TSet(_), "contains") => AST.evalCompose[Set[Any]](c, lhs)(s => (x: Any) => s.contains(x))
   }
+
+  override def emit(c: EmitContext) {
+    ((lhs.`type`, rhs): @unchecked) match {
+      case (TVariant, "start") =>
+        lhs.emit(c)
+        c.mv.visitMethodInsn(INVOKEVIRTUAL, "org/broadinstitute/hail/variant/Variant", "start", "()I") // , false
+    }
+  }
 }
 
 case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
@@ -558,6 +620,11 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
     case (lhsType, _, rhsType) =>
       parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")
   }
+
+  override def emit(c: EmitContext) {
+    // FIXME boolean, String "+", etc.
+    c.mv.visitInsn(`type`.asInstanceOf[TNumeric].binOp(operation))
+  }
 }
 
 case class Comparison(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
@@ -599,6 +666,25 @@ case class Comparison(posn: Position, lhs: AST, operation: String, rhs: AST) ext
     }
 
     TBoolean
+  }
+
+  override def emit(c: EmitContext) {
+    ((operation, operandType): @unchecked) match {
+      case ("<", TInt) =>
+        lhs.emit(c)
+        rhs.emit(c)
+
+        // FIXME name
+        val l0 = new Label()
+        val l1 = new Label()
+        val mv = c.mv
+        mv.visitJumpInsn(IF_ICMPLT, l0)
+        mv.visitInsn(ICONST_0)
+        mv.visitJumpInsn(GOTO, l1)
+        mv.visitLabel(l0)
+        mv.visitInsn(ICONST_1)
+        mv.visitLabel(l1)
+    }
   }
 }
 
@@ -673,6 +759,12 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
     case Some((_, t)) => t
     case None =>
       parseError(s"symbol `$symbol' not found")
+  }
+
+  override def emit(c: EmitContext) {
+    val (i, t) = c.symTab(symbol)
+    // + 1 is for this
+    c.mv.visitVarInsn(t.loadOp, i + 1)
   }
 }
 

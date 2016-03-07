@@ -29,6 +29,8 @@ object ExportVariants extends Command {
 
   def description = "Export list of variant information to tsv"
 
+  override def supportsMultiallelic = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val vas = vds.metadata.variantAnnotationSignatures

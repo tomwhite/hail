@@ -3,6 +3,7 @@ package org.broadinstitute.hail.expr
 import org.broadinstitute.hail.Utils._
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
+import org.objectweb.asm._
 
 object ParserUtils {
   def error(pos: Position, msg: String): Nothing = {
@@ -17,7 +18,51 @@ object ParserUtils {
   }
 }
 
-object Parser extends JavaTokenParsers {
+object Parser extends JavaTokenParsers with Opcodes {
+  import Opcodes._
+
+  def parseVariantFilter(symTab: Map[String, (Int, Type)], code: String): Array[Byte] = {
+    // println(s"code = $code")
+    val t: AST = parseAll(expr, code) match {
+      case Success(result, _) => result.asInstanceOf[AST]
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+    // println(s"t = $t")
+
+    t.typecheck(symTab)
+
+    // FIXME FRAMES
+    val cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES)
+
+    cw.visit(V1_6, ACC_PUBLIC + ACC_SUPER, "org/broadinstitute/hail/driver/VariantFilter1", null, "org/broadinstitute/hail/driver/VariantFilter", null)
+
+    {
+      val mv = cw.visitMethod(ACC_PUBLIC, "filter", "(Lorg/broadinstitute/hail/variant/Variant;Lorg/broadinstitute/hail/annotations/Annotations;)Z", null, null);
+      mv.visitCode()
+      val c = EmitContext(symTab, mv)
+      t.emit(c)
+      mv.visitInsn(IRETURN)
+
+      // COMPUTE_MAXS; args ignored
+      mv.visitMaxs(0, 0)
+      mv.visitEnd()
+    }
+
+    {
+      val mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
+      mv.visitCode()
+      mv.visitVarInsn(ALOAD, 0)
+      mv.visitMethodInsn(INVOKESPECIAL, "org/broadinstitute/hail/driver/VariantFilter", "<init>", "()V") // , false
+      mv.visitInsn(RETURN)
+      mv.visitMaxs(1, 1)
+      mv.visitEnd()
+    }
+
+    cw.visitEnd()
+
+    cw.toByteArray()
+  }
+
   def parse[T](symTab: Map[String, (Int, Type)], a: Array[Any], code: String): () => T = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
@@ -107,7 +152,9 @@ object Parser extends JavaTokenParsers {
     ident ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
 
   def args: Parser[Array[AST]] =
-    repsep(expr, ",") ^^ { _.toArray }
+    repsep(expr, ",") ^^ {
+      _.toArray
+    }
 
   def dot_expr: Parser[AST] =
     unary_expr ~ rep((withPos(".") ~ ident) | (withPos("(") ~ args ~ ")")) ^^ { case lhs ~ lst =>

@@ -396,7 +396,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
         sb += ':'
         sb.append(v.ref)
         sb += ':'
-        sb.append(v.alt)
+        sb.append(v.altAlleles.map(_.alt).mkString(","))
       case i: Iterable[_] =>
         var first = true
         i.foreach { x =>
