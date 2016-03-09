@@ -155,4 +155,14 @@ class FilterSuite extends SparkSuite {
 
   }
 
+  @Test def filterRegexTest() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val state = SplitMulti.run(State(sc, sqlContext, vds), Array[String]())
+    val s2 = FilterVariants.run(state, Array("--keep", "-c", """ "Dummy" ~ v.contig """))
+    println(s2.vds.nVariants)
+    val s3 = FilterVariants.run(state, Array("--keep", "-c", """ "^\d+$" ~ v.contig """))
+    println(s3.vds.nVariants)
+
+  }
+
 }
