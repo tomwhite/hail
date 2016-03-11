@@ -133,6 +133,8 @@ object LinearRegression {
   }
 }
 
+/*
+
 object LinearRegressionOnHcs {
 
   def apply(hcs: HardCallSet, y: DenseVector[Double], cov: CovariateData): LinearRegression = {
@@ -202,6 +204,7 @@ object LinearRegressionOnHcs {
     LinearRegressionOnHcs(hcs, y, cov)
   }
 }
+*/
 
 case class LinearRegression(rdd: RDD[(Variant, Option[LinRegStats])]) {
   def write(filename: String) {
