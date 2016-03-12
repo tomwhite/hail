@@ -173,7 +173,7 @@ object Main {
       GQByDP,
       ImportVCF,
       LinearRegressionCommand,
-      LinearRegressionOnHcsCommand,
+      //LinearRegressionOnHcsCommand,
       MendelErrorsCommand,
       SplitMulti,
       PCA,

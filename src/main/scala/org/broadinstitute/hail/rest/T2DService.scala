@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.rest
 
-import org.broadinstitute.hail.methods.{CovariateData, LinearRegressionOnHcs}
+
+import org.broadinstitute.hail.methods.{CovariateData} //, LinearRegressionOnHcs}
 import org.broadinstitute.hail.variant._
 import breeze.linalg.DenseVector
 
@@ -121,10 +122,13 @@ object T2DService {
     val hardLimit = 10000
     val limit = req.limit.map(_.min(hardLimit)).getOrElse(hardLimit)
 
-    val stats: Array[Stat] = LinearRegressionOnHcs(hcs, y, cov)
+    val stats: Array[Stat] = hcs.rdd.map(_ => Stat("C", 0, "R", "A", None)).take(limit)
+
+/*    val stats: Array[Stat] = LinearRegressionOnHcs(hcs, y, cov)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
       .take(limit)
+*/
 
     if (req.count.getOrElse(false))
       GetStatsResult(is_error = false, None, req.passback, None, Some(stats.length))

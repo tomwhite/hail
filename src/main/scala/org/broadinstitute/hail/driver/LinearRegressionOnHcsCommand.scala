@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.driver
 
+/*
 import org.broadinstitute.hail.methods.{LinearRegressionOnHcs, CovariateData, Pedigree}
 import org.broadinstitute.hail.variant.HardCallSet
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -34,3 +35,4 @@ object LinearRegressionOnHcsCommand extends Command {
     state
   }
 }
+*/
