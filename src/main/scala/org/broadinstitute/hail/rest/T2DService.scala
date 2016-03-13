@@ -16,13 +16,15 @@ import org.json4s._
 import org.json4s.native.Serialization
 import org.json4s.native.Serialization.{read, write}
 
+
 case class VariantFilter(operand: String,
   operator: String,
   value: String,
   operand_type: String) {
 
 
-  def filter(hcs: HardCallSet): HardCallSet = {
+  def filter(hcs: HardCallSet): HardCallSet = hcs
+  /* {
     operand match {
       case "chrom" =>
         assert(operand_type == "string"
@@ -45,6 +47,7 @@ case class VariantFilter(operand: String,
         }
     }
   }
+  */
 }
 
 

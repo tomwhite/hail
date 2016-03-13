@@ -8,7 +8,7 @@ import org.http4s.server.blaze.BlazeBuilder
 object Conf {
   var dataRoot: String = _
 
-  def hardCallSetFile = dataRoot + "GoT2D.chr22.hcs"
+  def hardCallSetFile = dataRoot + "GoT2D.chr22.novar.hcs"
 
   def covariateDataFile = dataRoot + "GoT2D.noNA.cov"
 }
@@ -28,9 +28,9 @@ object Main {
     Conf.dataRoot = args(0)
 
     println("loading hcs...")
-    val hcs = HardCallSet.read(SparkStuff.sqlContext, Conf.hardCallSetFile)
+    val hcs = HardCallSet.read(SparkStuff.sqlContext, Conf.hardCallSetFile).cache()
 
-    hcs.rdd.persist(StorageLevel.MEMORY_ONLY_SER)
+//    hcs.rdd.persist(StorageLevel.MEMORY_ONLY_SER)
 
     println("loading hcs done.")
 

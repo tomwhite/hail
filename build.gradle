@@ -23,7 +23,7 @@ repositories {
     jcenter()
 }
 
-//mainClassName = "org.broadinstitute.hail.driver.Main"
+// mainClassName = "org.broadinstitute.hail.driver.Main"
 
 mainClassName = "org.broadinstitute.hail.rest.Main"
 

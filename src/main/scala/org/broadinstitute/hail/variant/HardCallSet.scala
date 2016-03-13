@@ -13,7 +13,7 @@ object HardCallSet {
     val n = vds.nLocalSamples
 
     new HardCallSet(
-      vds.rdd.map { case (v, va, gs) => (v, CallStream(gs, n, sparseCutoff)) },
+      vds.rdd.map { case (v, va, gs) => CallStream(gs, n, sparseCutoff) },
       vds.localSamples,
       vds.metadata.sampleIds)
   }
@@ -31,13 +31,13 @@ object HardCallSet {
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
     new HardCallSet(
-      df.rdd.map(r => (r.getVariant(0), r.getCallStream(1))),
+      df.rdd.map(r => r.getCallStream()),
       localSamples,
       sampleIds)
   }
 }
 
-case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int], sampleIds: IndexedSeq[String]) {
+case class HardCallSet(rdd: RDD[CallStream], localSamples: Array[Int], sampleIds: IndexedSeq[String]) {
   def write(sqlContext: SQLContext, dirname: String) {
     if (!dirname.endsWith(".hcs"))
       fatal("Hard call set directory must end with .hcs")
@@ -55,7 +55,7 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
 
   def sparkContext: SparkContext = rdd.sparkContext
 
-  def copy(rdd: RDD[(Variant, CallStream)],
+  def copy(rdd: RDD[CallStream],
            localSamples: Array[Int] = localSamples,
            sampleIds: IndexedSeq[String] = sampleIds): HardCallSet =
     new HardCallSet(rdd, localSamples, sampleIds)
@@ -64,14 +64,14 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
 
   def repartition(nPartitions: Int) = copy(rdd = rdd.repartition(nPartitions)(null))
 
-  def filterVariants(p: (Variant) => Boolean): HardCallSet =
-    copy(rdd = rdd.filter { case (v, cs) => p(v) })
+  //def filterVariants(p: (Variant) => Boolean): HardCallSet =
+  //  copy(rdd = rdd.filter { case (v, cs) => p(v) })
 
   def nSamples = localSamples.size
 
   def nVariants: Long = rdd.count()
-  def nSparseVariants: Long = rdd.filter{ case (v, cs) => cs.isSparse }.count()
-  def nDenseVariants: Long = rdd.filter{ case (v, cs) => !cs.isSparse }.count()
+  def nSparseVariants: Long = rdd.filter(_.isSparse).count()
+  def nDenseVariants: Long = rdd.filter(!_.isSparse).count()
 }
 
 
