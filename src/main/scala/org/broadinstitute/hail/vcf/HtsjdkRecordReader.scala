@@ -48,7 +48,10 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     val v = Variant(vc.getContig,
       vc.getStart,
       ref,
-      vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
+      vc.getAlternateAlleles.iterator.asScala.map(a => {
+        val base = if (a.getBaseString.isEmpty) "." else a.getBaseString // TODO: handle structural variants
+        AltAllele(ref, base)
+      }).toArray)
 
     val info = infoSignature.map { sig =>
       val a = Annotation(
