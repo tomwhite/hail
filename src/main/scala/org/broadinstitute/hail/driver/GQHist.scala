@@ -33,9 +33,9 @@ class GQHistCombiner(val a: Array[Int]) extends Serializable {
   import GQHistCombiner._
 
   def merge(g: Genotype): GQHistCombiner = {
-    g.gq.foreach { gqx =>
+    g.pl.foreach { pl =>
       if (g.isCalled)
-        a(toIndex(gqx, g.gtType)) += 1
+        a(toIndex(pl(0), g.gtType)) += 1
     }
 
     this
