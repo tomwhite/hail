@@ -9,12 +9,13 @@ object GQHistCombiner {
   def apply(): GQHistCombiner =
     new GQHistCombiner(Array.fill[Int](300)(0))
 
-  def toIndex(gq: Int, gtType: GenotypeType): Int = {
-    assert(gq >= 0 && gq < 100)
+  def toIndex(homRefPL: Int, gtType: GenotypeType): Int = {
+    assert(homRefPL >= 0)
     val id = gtType.id
     assert(id >= 0 && id <= 3)
 
-    gq + 100 * gtType.id
+    val capped = if (homRefPL > 99) 99 else homRefPL
+    capped + 100 * gtType.id
   }
 
   def fromIndex(i: Int): (Int, GenotypeType) = {
