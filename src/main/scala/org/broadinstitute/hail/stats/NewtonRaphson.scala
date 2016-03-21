@@ -11,8 +11,10 @@ class NewtonRaphson(gradient: DenseVector[Double] => DenseVector[Double], hessia
     val h = hessian(x0)
 
     for (i <- 0 until iterations) {
-      x := x - inv(h) * g
+      x := x - h \ g  // try Cholesky
       g := gradient(x)
+
+      println(g)
 
       if (norm(g) < tol)
         return x
