@@ -90,7 +90,7 @@ object GQHist extends Command {
 
     val a = result.a
     writeTextFile(options.output, state.hadoopConf) { s =>
-      s.write("GQ\tGT\tCOUNT\n")
+      s.write("PLHOMREF\tGT\tCOUNT\n")
       for (i <- a.indices) {
         val (id, gtType) = GQHistCombiner.fromIndex(i)
 
