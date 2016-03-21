@@ -7,9 +7,9 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
 import scala.collection.mutable.ArrayBuffer
 
-case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
+case class LogRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
 
-class LinRegBuilder extends Serializable {
+class LogRegBuilder extends Serializable {
   private val rowsX = ArrayBuffer[Int]()
   private val valsX = ArrayBuffer[Double]()
   private var sumX = 0
@@ -17,7 +17,7 @@ class LinRegBuilder extends Serializable {
   private var sumXY = 0.0
   private val missingRows = ArrayBuffer[Int]()
 
-  def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
+  def merge(row: Int, g: Genotype, y: DenseVector[Double]): LogRegBuilder = {
     g.gt match {
       case Some(0) =>
       case Some(1) =>
@@ -39,7 +39,7 @@ class LinRegBuilder extends Serializable {
     this
   }
 
-  def merge(that: LinRegBuilder): LinRegBuilder = {
+  def merge(that: LogRegBuilder): LogRegBuilder = {
     rowsX ++= that.rowsX.result()
     valsX ++= that.valsX.result()
     sumX += that.sumX
@@ -76,8 +76,8 @@ class LinRegBuilder extends Serializable {
 object LogisticRegression {
   def name = "LogisticRegression"
 
-  def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    // LinearRegressionCommand uses cov.filterSamples(ped.phenotypedSamples) in call
+  def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LogisticRegression = {
+    // LogisticRegressionCommand uses cov.filterSamples(ped.phenotypedSamples) in call
     require(cov.covRowSample.forall(ped.phenotypedSamples))
 
     val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
@@ -107,15 +107,16 @@ object LogisticRegression {
     val qtyBc = sc.broadcast(qty)
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
 
-    new LinearRegression(vds
+    new LogisticRegression(vds
       .filterSamples { case (s, sa) => samplesWithCovDataBc.value.contains(s) }
-      .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
+      .aggregateByVariantWithKeys[LogRegBuilder](new LogRegBuilder())(
         (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues { lrb =>
         lrb.stats(yBc.value, n).map { stats => {
           val (x, xx, xy, nMissing) = stats
 
+          // FIXME: change for logistic
           val qtx = qtBc.value * x
           val qty = qtyBc.value
           val xxp: Double = xx - (qtx dot qtx)
@@ -127,16 +128,16 @@ object LogisticRegression {
           val t = b / se
           val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
-          LinRegStats(nMissing, b, se, t, p) }
+          LogRegStats(nMissing, b, se, t, p) }
         }
       }
     )
   }
 }
 
-case class LinearRegression(lr: RDD[(Variant, Option[LinRegStats])]) {
+case class LogisticRegression(lr: RDD[(Variant, Option[LogRegStats])]) {
   def write(filename: String) {
-    def toLine(v: Variant, olrs: Option[LinRegStats]) = olrs match {
+    def toLine(v: Variant, olrs: Option[LogRegStats]) = olrs match {
       case Some(lrs) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + lrs.nMissing + "\t" + lrs.beta + "\t" + lrs.se + "\t" + lrs.t + "\t" + lrs.p
       case None => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\tNA\tNA\tNA\tNA\tNA"
     }
