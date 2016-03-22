@@ -5,23 +5,25 @@ import org.broadinstitute.hail.Utils._
 
 class NewtonRaphson(gradient: DenseVector[Double] => DenseVector[Double], hessian: DenseVector[Double] => DenseMatrix[Double]) {
 
-  def optimize(x0: DenseVector[Double], tol: Double = 1e-3, iterations: Int = 10): DenseVector[Double] = {
+  def optimize(x0: DenseVector[Double], tolerance: Double = 1e-3, iterations: Int = 10): DenseVector[Double] = {
     val x = x0
     val g = gradient(x0)
     val h = hessian(x0)
 
-    for (i <- 0 until iterations) {
-      x := x - h \ g  // try Cholesky
+    println(s"0: $x, $g")
+
+    for (i <- 1 to iterations) {
+      x := x - h \ g  // FIXME: use Cholesky
       g := gradient(x)
 
-      println(g)
+      println(s"$i: $x, $g")
 
-      if (norm(g) < tol)
+      if (norm(g) < tolerance)
         return x
 
       h := hessian(x)
     }
 
-    fatal("failed to converge")
+    fatal("Failed to converge!")
   }
 }
