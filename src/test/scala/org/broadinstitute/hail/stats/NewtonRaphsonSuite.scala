@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.stats
 
+import breeze.numerics.sigmoid
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
@@ -28,7 +29,6 @@ class NewtonRaphsonSuite extends TestNGSuite {
 
     println(xmin)
   }
-  */
 
   @Test def cubicTest() = {
     val d = 1
@@ -53,8 +53,38 @@ class NewtonRaphsonSuite extends TestNGSuite {
 
     println(xmin)
   }
+  */
 
-  @Test def covTest() = {
+  @Test def logregTest() = {
 
+    val t = DenseVector(0d, 0d, 1d, 1d, 1d, 1d)
+
+    val X = DenseMatrix(
+      (1.0,  0.0, -1.0),
+      (1.0,  2.0,  3.0),
+      (1.0,  1.0,  5.0),
+      (1.0, -2.0,  0.0),
+      (1.0, -2.0, -4.0),
+      (1.0,  4.0,  3.0))
+
+    println(X)
+
+    def gradient(w: DenseVector[Double]): DenseVector[Double] = {
+      val y = sigmoid(X * w)
+      X.t * (y :- t)
+    }
+
+    def hessian(w: DenseVector[Double]): DenseMatrix[Double] = {
+      val y = sigmoid(X * w)
+      val R = y :* (1d - y)
+      X.t * diag(R) * X
+    }
+
+    val nr = new NewtonRaphson(gradient, hessian)
+
+    val w0 = DenseVector(0d, 0d, 0d)
+    val wmin = nr.optimize(w0, tolerance = 1.0E-6, iterations = 10)
+
+    println(wmin)
   }
 }
