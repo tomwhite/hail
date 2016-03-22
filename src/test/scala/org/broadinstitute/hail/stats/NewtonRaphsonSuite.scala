@@ -85,6 +85,16 @@ class NewtonRaphsonSuite extends TestNGSuite {
     val w0 = DenseVector(0d, 0d, 0d)
     val wmin = nr.optimize(w0, tolerance = 1.0E-6, iterations = 10)
 
-    println(wmin)
+    assert(D_==(wmin(0),  0.7245, tolerance = 1.0E-3))
+    assert(D_==(wmin(1), -0.3586, tolerance = 1.0E-3))
+    assert(D_==(wmin(2),  0.1923, tolerance = 1.0E-3))
+
+    /* Testimg against R:
+    y0 = c(0, 0, 1, 1, 1, 1)
+    c1 = c(0, 2, 1, -2, -2, 4)
+    c2 = c(-1, 3, 5, 0, -4, 3)
+    logfit <- glm(y0 ~ c1 + c2, family = binomial(link = "logit"))
+    summary(logfit)
+    */
   }
 }
