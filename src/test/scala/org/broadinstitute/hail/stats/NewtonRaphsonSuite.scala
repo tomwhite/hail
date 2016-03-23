@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.stats
 
-import breeze.numerics.sigmoid
+import breeze.numerics.{erf, abs, sqrt, sigmoid}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
@@ -80,14 +80,38 @@ class NewtonRaphsonSuite extends TestNGSuite {
       X.t * diag(R) * X
     }
 
+    val b0 = DenseVector(0d, 0d, 0d)
+
     val nr = new NewtonRaphson(gradient, hessian)
 
-    val w0 = DenseVector(0d, 0d, 0d)
-    val wmin = nr.optimize(w0, tolerance = 1.0E-6, iterations = 10)
 
-    assert(D_==(wmin(0),  0.7245, tolerance = 1.0E-3))
-    assert(D_==(wmin(1), -0.3586, tolerance = 1.0E-3))
-    assert(D_==(wmin(2),  0.1923, tolerance = 1.0E-3))
+    val b = nr.optimize(b0, tolerance = 1.0E-6, iterations = 10)
+    val se = sqrt(diag(inv(hessian(b))))
+    val z = b :/ se
+    val sqrt2 = sqrt(2)
+    val p = z.map(c => 1 + erf(-abs(c) / sqrt2))
+
+    println(b)
+    println(se)
+    println(z)
+    println(p)
+
+    assert(D_==(b(0),  0.7245, tolerance = 1.0E-3))
+    assert(D_==(b(1), -0.3586, tolerance = 1.0E-3))
+    assert(D_==(b(2),  0.1923, tolerance = 1.0E-3))
+
+    assert(D_==(se(0), 0.9397, tolerance = 1.0E-3))
+    assert(D_==(se(1), 0.6247, tolerance = 1.0E-3))
+    assert(D_==(se(2), 0.4560, tolerance = 1.0E-3))
+
+    assert(D_==(z(0),  0.771, tolerance = 1.0E-3))
+    assert(D_==(z(1), -0.574, tolerance = 1.0E-3))
+    assert(D_==(z(2),  0.422, tolerance = 1.0E-3))
+
+    assert(D_==(p(0), 0.441, tolerance = 1.0E-3))
+    assert(D_==(p(1), 0.566, tolerance = 1.0E-3))
+    assert(D_==(p(2), 0.673, tolerance = 1.0E-3))
+
 
     /* Testimg against R:
     y0 = c(0, 0, 1, 1, 1, 1)
