@@ -193,7 +193,7 @@ abstract class Command {
     if (!supportsMultiallelic
       && state.vds != null
       && !state.vds.wasSplit)
-      fatal(s"does not support multiallelics.\n  Run `splitmulti' first.")
+      fatal(s"$name does not support multiallelics.\n  Run `splitmulti' first.")
 
     run(state, options)
   }

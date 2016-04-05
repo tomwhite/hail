@@ -23,7 +23,7 @@ object VariantSampleMatrix {
   }
 
   def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
-    require(dirname.endsWith(".vds"))
+    fatalIf(!dirname.endsWith(".vds"), "write paths must end in `.vds'")
 
     val (localSamples, metadata) = readDataFile(dirname + "/metadata.ser",
       sqlContext.sparkContext.hadoopConfiguration) { dis => {
@@ -500,7 +500,7 @@ class RichVDS(vds: VariantDataset) {
     ))
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
-    require(dirname.endsWith(".vds"))
+    fatalIf(!dirname.endsWith(".vds"), "write paths must end in `.vds'")
 
     val hConf = vds.sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
