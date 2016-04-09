@@ -269,11 +269,7 @@ class VariantQCCombiner extends Serializable {
 
 object VariantQC extends Command {
 
-  class Options extends BaseOptions {
-    @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
-      usage = "Output file")
-    var output: String = _
-  }
+  class Options extends BaseOptions
 
   def newOptions = new Options
 
@@ -289,42 +285,12 @@ object VariantQC extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val output = options.output
-
-    // don't recompute QC in case there are multiple downstream actions
-    val r = results(vds).persist(StorageLevel.MEMORY_AND_DISK)
-
-    if (output != null) {
-      hadoopDelete(output, state.hadoopConf, recursive = true)
-      r.map { case (v, comb) =>
-        val sb = new StringBuilder()
-        sb.append(v.contig)
-        sb += '\t'
-        sb.append(v.start)
-        sb += '\t'
-        sb.append(v.ref)
-        sb += '\t'
-        sb.append(v.alt)
-        sb += '\t'
-        comb.emit(sb)
-        sb.result()
-      }.writeTable(output, Some("Chrom\tPos\tRef\tAlt\t" + VariantQCCombiner.header))
-    }
-
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature, "qc")
-    state.copy(
-      vds = vds.copy(
-        rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
-          // if upstream operation is a recomputed shuffle, order of elements may disagree
-          val ia = it.toArray.sortWith { case ((v1, _, _), (v2, _, _)) => v1 < v2 }
-          val ja = jt.toArray.sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
+    val newVDS =
+      vds.mapAnnotationsWithAggregate[VariantQCCombiner](new VariantQCCombiner, newVAS)((comb, v, s, g) => comb.merge(g),
+        (comb1, comb2) => comb1.merge(comb2),
+        (va, comb) => insertQC(va, Some(comb.asAnnotation)))
 
-          ia.iterator.zip(ja.iterator).map { case ((v, va, gs), (v2, comb)) =>
-            assert(v == v2)
-            (v, insertQC(va, Some(comb.asAnnotation)), gs)
-          }
-        },
-        vaSignature = newVAS)
-    )
+    state.copy(vds = newVDS.copy(rdd = newVDS.rdd.persist(StorageLevel.MEMORY_AND_DISK)))
   }
 }

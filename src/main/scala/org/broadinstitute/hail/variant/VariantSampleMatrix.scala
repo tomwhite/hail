@@ -394,7 +394,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         }.fold(true)(_ && _)
   }
 
-  def mapAnnotationsWithAggregate[U](zeroValue: U)(
+  def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: Type)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U,
     mapOp: (Annotation, U) => Annotation)
@@ -405,8 +405,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
 
-    copy(rdd = rdd
-      .map {
+    copy(vaSignature = newVAS,
+      rdd = rdd .map {
         case (v, va, gs) =>
           val serializer = SparkEnv.get.serializer.newInstance()
           val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
