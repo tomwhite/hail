@@ -1,27 +1,29 @@
 package org.broadinstitute.hail
 
 import java.io._
-import breeze.linalg.operators.{OpSub, OpAdd}
-import org.apache.{spark, hadoop}
+
+import breeze.linalg.operators.{OpAdd, OpSub}
+import org.apache.{hadoop, spark}
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
+import org.apache.hadoop.io.{BytesWritable, NullWritable, Text}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.{SparkEnv, AccumulableParam}
+import org.apache.spark.{AccumulableParam, SparkEnv}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
+import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.variant.Variant
+
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
-import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
-import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
+import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
+
 import scala.reflect.ClassTag
 import org.slf4j.{Logger, LoggerFactory}
-
 import Utils._
 
 final class ByteIterator(val a: Array[Byte]) {
@@ -491,6 +493,57 @@ class FatalException(msg: String) extends RuntimeException(msg)
 
 class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
 
+
+object RichDenseMatrixDouble {
+  def horzcat(oms: Option[DenseMatrix[Double]]*): Option[DenseMatrix[Double]] = {
+    val ms = oms.flatMap(m => m)
+    if (ms.isEmpty)
+      None
+    else
+      Some(DenseMatrix.horzcat(ms: _*))
+  }
+}
+
+
+// Not supporting generic T because its difficult to do with ArrayBuilder and not needed yet. See:
+// http://stackoverflow.com/questions/16306408/boilerplate-free-scala-arraybuilder-specialization
+class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
+  def filterRows(keepRow: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
+
+    var nRows = 0
+    for (row <- 0 until m.rows)
+      if (keepRow(row)) {
+        nRows += 1
+        for (col <- 0 until m.cols)
+          ab += m(row, col)
+      }
+
+    if (nRows > 0)
+      Some(new DenseMatrix[Double](rows = nRows, cols = m.cols, data = ab.result(),
+        offset = 0, majorStride = m.cols, isTranspose = true))
+    else
+      None
+  }
+
+  def filterCols(keepCol: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
+
+    var nCols = 0
+    for (col <- 0 until m.cols)
+      if (keepCol(col)) {
+        nCols += 1
+        for (row <- 0 until m.rows)
+          ab += m(row, col)
+      }
+
+    if (nCols > 0)
+      Some(new DenseMatrix[Double](rows = m.rows, cols = nCols, data = ab.result()))
+    else
+      None
+  }
+}
+
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
@@ -569,6 +622,10 @@ object Utils extends Logging {
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
     new RichIntPairTraversableOnce[V](t)
+
+
+  implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble =
+    new RichDenseMatrixDouble(m)
 
   def plural(n: Int, sing: String, plur: String = null): String =
     if (n == 1)
