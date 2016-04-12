@@ -20,7 +20,8 @@ object ToplevelCommands {
 
   def commandNames: Set[String] = commands.keys.toSet
 
-  def register(command: Command) {
+  def register(command: Command)
+  {
     commands += command.name -> command
   }
 
@@ -62,6 +63,7 @@ object ToplevelCommands {
   register(Grep)
   register(GQByDP)
   register(GQHist)
+  register(GTCountByAnnotation)
   register(ImportVCF)
   register(LinearRegressionCommand)
   register(MendelErrorsCommand)
