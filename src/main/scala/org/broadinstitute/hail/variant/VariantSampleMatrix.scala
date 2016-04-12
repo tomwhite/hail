@@ -323,6 +323,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }.foldByKey(zeroValue)(combOp)
   }
 
+
   def aggregateByVariant[U](zeroValue: U)(
     seqOp: (U, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Variant, U)] =
@@ -371,7 +372,36 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     */
   }
 
-  def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {
+  def aggregateByAnnotation[U,V](zeroValue: U)(
+    seqOp: (U, Variant, Annotation, String, Annotation, T) => U,
+    combOp: (U, U) => U,
+    mapOp: Annotation => V)(implicit uct: ClassTag[U], vct: ClassTag[V]): RDD[(V, U)] = {
+
+    // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
+    val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
+    val zeroArray = new Array[Byte](zeroBuffer.limit)
+    zeroBuffer.get(zeroArray)
+
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+
+    rdd
+      .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[T])]) =>
+        val serializer = SparkEnv.get.serializer.newInstance()
+        it.map { case (v, va, gs) =>
+          val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+          (mapOp(va), gs.iterator.zipWithIndex.map {
+            case (g, i) => (localSampleIdsBc.value(i), localSampleAnnotationsBc.value(i), g) }
+            .foldLeft(zeroValue) { case (acc, (s, sa, g)) =>
+              seqOp(acc, v, va, s, sa, g)
+            })
+        }
+      }
+      .reduceByKey(combOp)
+  }
+
+
+    def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {
 
     val localtct = tct
 
