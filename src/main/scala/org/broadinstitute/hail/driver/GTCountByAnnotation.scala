@@ -19,7 +19,7 @@ object GTCountByAnnotation extends Command {
 
   def description = "Count number of alternate alleles per sample per given annotation. At the moment, the binning is naive => each value gets a bin!"
 
-  override def supportsMultiallelic = false
+  override def supportsMultiallelic = true
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output filename")
@@ -63,15 +63,11 @@ object GTCountByAnnotation extends Command {
 
    def addGenotype(g: Genotype) : GTCounter ={
 
-     g.gt match {
+     if(g.isHomRef){nRef += 1}
+     else if(g.isHet){nHet += 1}
+     else if(g.isHomVar){nVar += 1}
+     else{nMissing +=1}
 
-       case Some(0) => nRef += 1
-       case Some (1) => nHet += 1
-       case Some(2) => nVar +=1
-       case None => nMissing += 1
-
-
-     }
      this
    }
 
@@ -85,8 +81,7 @@ object GTCountByAnnotation extends Command {
     val vds = state.vds
 
 
-
-    val annList = options.annotations.map(a => vds.queryVA(a)).toSeq
+    val annList = options.annotations.map(a => vds.queryVA(a)._2).toSeq
 
 
     val annAgg = vds.aggregateByAnnotation(new GTCounter())({
