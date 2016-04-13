@@ -38,20 +38,24 @@ object GTCountByAnnotation extends Command {
    * case Some(s) =>
    * }**/
 
+  object GTCounter{
 
+   val header = "HomRef\tHet\tHomVar\tMissing"
+
+ }
 
 
  class GTCounter extends Serializable{
 
+   var nRef = 0;
    var nHet = 0;
    var nVar = 0;
-   var nRef = 0;
    var nMissing = 0;
 
   def merge(gc: GTCounter) : GTCounter = {
+    nRef += gc.nRef
     nHet += gc.nHet
     nVar += gc.nVar
-    nRef += gc.nRef
     nMissing += gc.nMissing
     this
   }
@@ -71,37 +75,19 @@ object GTCountByAnnotation extends Command {
      this
    }
 
+   def toLine() : String = {
+     nRef + "\t" + nHet + "\t" + nVar + "\t" + nMissing
+   }
+
  }
-
-
-  /**class AggAnn{
-
-    override def equals(other: Any): Boolean = other match{
-      case that: AggAnn =>
-    }
-
-    val annotations = Map[String,Annotation]
-
-
-  }**/
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    //vds.metadata.vaSignature.
 
-    //val annnotationType = getAnnotationType(vds,options.annotation)
-
-//    val annotations = Parser.parseAnnotationRootList(options.annotation, Annotation.VARIANT_HEAD)
 
     val annList = options.annotations.map(a => vds.queryVA(a)).toSeq
 
-   /** if(vds.metadata.vaSignature.getOption(options.annotation).isEmpty){
-
-    }**/
-
-    //val ann = state.sc.broadcast(vds.queryVA(options.annotation))
-    //val vaBc = state.sc.broadcast(vds.metadata.)
 
     val annAgg = vds.aggregateByAnnotation(new GTCounter())({
       case(counter,v,va,s,sa,g) =>
@@ -112,8 +98,14 @@ object GTCountByAnnotation extends Command {
         }
     ).collect()
 
+    val outLines = annAgg.map{case (ann,gc) =>
+        ann.map{case a => a.getOrElse("NA").toString()}.reduce[String]{case (a1,a2) => a1+"\t"+a2} + "\t" + gc.toLine()
+    }
+
+    val annHeader = options.annotations.reduce((a1,a2) => a1 + "\t" + a2)
 
 
+    writeTable(options.output,state.sc.hadoopConfiguration, outLines, Some(annHeader+"\t"+GTCounter.header))
 
    state
   }
