@@ -55,7 +55,7 @@ object ExportVCF extends Command {
     val infoSignature = vds.vaSignature
       .getAsOption[TStruct]("info")
     val infoQuery: Querier = infoSignature match {
-      case Some(_) => vas.query("info")
+      case Some(_) => vds.queryVA("va.info")._2
       case None => a => None
     }
 
@@ -75,9 +75,12 @@ object ExportVCF extends Command {
           |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
       sb += '\n'
 
-      vds.filters.map { case (key, desc) =>
-        sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
-      }
+      vds.vaSignature.fieldOption("filters")
+        .foreach { f =>
+          f.attrs.foreach { case (key, desc) =>
+            sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
+          }
+        }
 
       infoSignature.foreach(_.fields.foreach { f =>
         sb.append("##INFO=<ID=")
@@ -119,13 +122,13 @@ object ExportVCF extends Command {
     }
 
     val idQuery: Option[Querier] = vas.getOption("rsid")
-      .map(_ => vds.queryVA("rsid"))
+      .map(_ => vds.queryVA("va.rsid")._2)
 
     val qualQuery: Option[Querier] = vas.getOption("qual")
-      .map(_ => vds.queryVA("qual"))
+      .map(_ => vds.queryVA("va.qual")._2)
 
     val filterQuery: Option[Querier] = vas.getOption("filters")
-      .map(_ => vds.queryVA("filters"))
+      .map(_ => vds.queryVA("va.filters")._2)
 
     def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Genotype]) {
 
@@ -134,7 +137,7 @@ object ExportVCF extends Command {
       sb.append(v.start)
       sb += '\t'
 
-      sb.append(idQuery.flatMap(_(a))
+      sb.append(idQuery.flatMap(_ (a))
         .getOrElse("."))
 
       sb += '\t'
@@ -144,13 +147,13 @@ object ExportVCF extends Command {
         sb.append(aa.alt))(() => sb += ',')
       sb += '\t'
 
-      sb.append(qualQuery.flatMap(_(a))
+      sb.append(qualQuery.flatMap(_ (a))
         .map(_.asInstanceOf[Double].formatted("%.2f"))
         .getOrElse("."))
 
       sb += '\t'
 
-      filterQuery.flatMap(_(a))
+      filterQuery.flatMap(_ (a))
         .map(_.asInstanceOf[IndexedSeq[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
