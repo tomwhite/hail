@@ -15,7 +15,7 @@ import scala.collection.immutable.Map
   */
 object GTCountByAnnotation extends Command {
 
-  def name = "countbyannotation"
+  def name = "GTcountbyannotation"
 
   def description = "Count number of alternate alleles per sample per given annotation. At the moment, the binning is naive => each value gets a bin!"
 
