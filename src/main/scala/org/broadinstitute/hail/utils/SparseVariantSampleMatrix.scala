@@ -16,11 +16,11 @@ class SparseVariantSampleMatrix(sampleIDs: IndexedSeq[String]) extends Serializa
   private val variants = mutable.HashMap[String, mutable.HashMap[String,GenotypeType]]()
   private val samples = mutable.HashMap[String, mutable.HashMap[String, GenotypeType]]()
 
-  def merge(g: SparseVariantSampleMatrix): SparseVariantSampleMatrix = {
+  def merge(that: SparseVariantSampleMatrix): SparseVariantSampleMatrix = {
 
-    variants ++= g.variants
+    variants ++= that.variants
 
-    g.samples foreach {case(s,variants) => {
+    that.samples foreach {case(s,variants) => {
       if(samples.contains(s)){
         samples.get(s).get ++= variants
       }else{
@@ -30,21 +30,21 @@ class SparseVariantSampleMatrix(sampleIDs: IndexedSeq[String]) extends Serializa
     this
   }
 
-  def addVariantGenotype(v: String, s: String, g: Genotype): SparseVariantSampleMatrix = {
+  def addVariantGenotype(variantID: String, sampleID: String, g: Genotype): SparseVariantSampleMatrix = {
 
     if(!g.isHomRef) {
       //Add genotype in variants
-      if (variants.contains(v)) {
-        variants.get(v).get.update(s, g.gtType)
+      if (variants.contains(variantID)) {
+        variants.get(variantID).get.update(sampleID, g.gtType)
       }else{
-        variants.update(v,mutable.HashMap(s -> g.gtType))
+        variants.update(variantID,mutable.HashMap(sampleID -> g.gtType))
       }
 
       //Add variant in sample
-      if(samples.contains(s)){
-        samples.get(s).get.update(v,g.gtType)
+      if(samples.contains(sampleID)){
+        samples.get(sampleID).get.update(variantID,g.gtType)
       }else{
-        samples.update(s,mutable.HashMap(v -> g.gtType))
+        samples.update(sampleID,mutable.HashMap(variantID -> g.gtType))
       }
 
     }
@@ -53,17 +53,17 @@ class SparseVariantSampleMatrix(sampleIDs: IndexedSeq[String]) extends Serializa
     this
   }
 
-  def getVariant(v: String): Option[Map[String,GenotypeType]] = {
-    if(variants.contains(v)) {
-      Some(variants.get(v).get.toMap)
+  def getVariant(variantID: String): Option[Map[String,GenotypeType]] = {
+    if(variants.contains(variantID)) {
+      Some(variants.get(variantID).get.toMap)
     }
     None
   }
 
-  def getSample(s: String): Option[Map[String,GenotypeType]] = {
-    if(sampleIDs.contains(s)) {
-      if(samples.contains(s)) {
-        Some(samples.get(s).get.toMap)
+  def getSample(sampleID: String): Option[Map[String,GenotypeType]] = {
+    if(sampleIDs.contains(sampleID)) {
+      if(samples.contains(sampleID)) {
+        Some(samples.get(sampleID).get.toMap)
       }else{
         Some(Map[String,GenotypeType]())
       }
@@ -71,9 +71,9 @@ class SparseVariantSampleMatrix(sampleIDs: IndexedSeq[String]) extends Serializa
     None
   }
 
-  def getGenotype(v: String, s:String) : Option[GenotypeType] = {
-    if (variants.contains(v) && sampleIDs.contains(s)) {
-      variants.get(v).get.get(s) match {
+  def getGenotype(variantID: String, sampleID:String) : Option[GenotypeType] = {
+    if (variants.contains(variantID) && sampleIDs.contains(sampleID)) {
+      variants.get(variantID).get.get(sampleID) match {
         case (Some(g)) => Some(g)
         case None => Some(GenotypeType.HomRef)
       }
