@@ -17,8 +17,7 @@ case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Var
 object BgenLoader {
   final val MAX_PL = 51
 
-  lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => if (i == 0) MAX_PL else -10 * math.log10(i) }
-    .toArray
+  lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
 
   def load(sc: SparkContext, file: String, nPartitions: Option[Int] = None): BgenResult = {
 

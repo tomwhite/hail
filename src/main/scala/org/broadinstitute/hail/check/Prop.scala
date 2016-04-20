@@ -9,15 +9,15 @@ abstract class Prop {
     apply(Parameters.default)
   }
 
-  def check(numIterations: Int) {
-    apply(Parameters.default.copy(size = numIterations))
+  def check(numIterations: Int = 100, vdsSize: Int = 100) {
+    apply(Parameters.default.copy(count = numIterations, size = vdsSize))
   }
 }
 
 class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {
   override def apply(p: Parameters, name: Option[String]) {
     val prefix = name.map(_ + ": ").getOrElse("")
-    for (i <- 0 until p.size) {
+    for (i <- 0 until p.count) {
       val v1 = g1(p)
       val r = f(v1)
       if (!r) {
@@ -26,14 +26,14 @@ class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {
         assert(r)
       }
     }
-    println(s" + ${prefix}OK, passed ${p.size} tests.")
+    println(s" + ${prefix}OK, passed ${p.count} tests.")
   }
 }
 
 class GenProp2[T1, T2](g1: Gen[T1], g2: Gen[T2], f: (T1, T2) => Boolean) extends Prop {
   override def apply(p: Parameters, name: Option[String]) {
     val prefix = name.map(_ + ": ").getOrElse("")
-    for (i <- 0 until p.size) {
+    for (i <- 0 until p.count) {
       val v1 = g1(p)
       val v2 = g2(p)
       val r = f(v1, v2)
@@ -44,14 +44,14 @@ class GenProp2[T1, T2](g1: Gen[T1], g2: Gen[T2], f: (T1, T2) => Boolean) extends
         assert(r)
       }
     }
-    println(s" + ${prefix}OK, passed ${p.size} tests.")
+    println(s" + ${prefix}OK, passed ${p.count} tests.")
   }
 }
 
 class GenProp3[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], f: (T1, T2, T3) => Boolean) extends Prop {
   override def apply(p: Parameters, name: Option[String]) {
     val prefix = name.map(_ + ": ").getOrElse("")
-    for (i <- 0 until p.size) {
+    for (i <- 0 until p.count) {
       val v1 = g1(p)
       val v2 = g2(p)
       val v3 = g3(p)
@@ -64,7 +64,7 @@ class GenProp3[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], f: (T1, T2, T3
         assert(r)
       }
     }
-    println(s" + ${prefix}OK, passed ${p.size} tests.")
+    println(s" + ${prefix}OK, passed ${p.count} tests.")
   }
 }
 

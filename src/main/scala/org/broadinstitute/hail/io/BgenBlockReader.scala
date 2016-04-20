@@ -68,7 +68,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       assert(bytes.length == nRow * 6)
 
       val bar = new ByteArrayReader(bytes)
-      val b = new GenotypeStreamBuilder(variant, ab, compress = compressGS)
+      val b = new GenotypeStreamBuilder(variant, compress = compressGS)
 
       val genoBuilder = new GenotypeBuilder(variant)
       var plAA = -1
@@ -81,29 +81,19 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         val pAB = bar.readShort()
         val pBB = bar.readShort()
 
-        if (pAA == 32768) {
-          plAA = 0
-          plAB = BgenLoader.MAX_PL
-          plBB = BgenLoader.MAX_PL
-        } else if (pAB == 32768) {
-          plAA = BgenLoader.MAX_PL
-          plAB = 0
-          plBB = BgenLoader.MAX_PL
-        } else if (pBB == 32768) {
-          plAA = BgenLoader.MAX_PL
-          plAB = BgenLoader.MAX_PL
-          plBB = 0
-        } else {
-          val dAA = if (pAA == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAA)
-          val dAB = if (pAB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAB)
-          val dBB = if (pBB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pBB)
+        val dAA = BgenLoader.phredConversionTable(pAA)
+        val dAB = BgenLoader.phredConversionTable(pAB)
+        val dBB = BgenLoader.phredConversionTable(pBB)
 
-          val minValue = math.min(math.min(dAA, dAB), dBB)
+        val minValue = math.min(math.min(dAA, dAB), dBB)
 
-          plAA = (dAA - minValue + .5).toInt
-          plAB = (dAB - minValue + .5).toInt
-          plBB = (dBB - minValue + .5).toInt
-        }
+        plAA = (dAA - minValue + .5).toInt
+        plAB = (dAB - minValue + .5).toInt
+        plBB = (dBB - minValue + .5).toInt
+
+        //if (chr == "01" && position == 1785424759 && i == 712 && alt == "GGTGC")
+          //println(s"else bgenBlockReader sampleIndex=$i pAA=$pAA pAB=$pAB pBB=$pBB plAA=$plAA plAB=$plAB plBB=$plBB dAA=$dAA dAB=$dAB dBB=$dBB")
+
 
         assert(plAA == 0 || plAB == 0 || plBB == 0)
 

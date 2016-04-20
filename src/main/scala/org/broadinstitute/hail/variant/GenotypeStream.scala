@@ -98,7 +98,7 @@ object GenotypeStream {
   }
 }
 
-class GenotypeStreamBuilder(variant: Variant, b: mutable.ArrayBuilder.ofByte, compress: Boolean = true)
+class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
   extends mutable.Builder[Genotype, GenotypeStream] {
 
   val b = new mutable.ArrayBuilder.ofByte

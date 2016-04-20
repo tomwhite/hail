@@ -46,48 +46,39 @@ object GenLoader {
       for (i <- dosages.indices by 3) {
         val ints = convertPPsToInt(Array(dosages(i), dosages(i + 1), dosages(i + 2)))
 
-          val pAA = (dosages(i) * 32768).round.toInt
-          val pAB = (dosages(i + 1) * 32768).round.toInt
-          val pBB = (dosages(i + 2) * 32768).round.toInt
+        val pAA = (dosages(i) * 32768).round.toInt
+        val pAB = (dosages(i + 1) * 32768).round.toInt
+        val pBB = (dosages(i + 2) * 32768).round.toInt
 
-          if (pAA == 32768) {
-            plAA = 0
-            plAB = BgenLoader.MAX_PL
-            plBB = BgenLoader.MAX_PL
-          } else if (pAB == 32768) {
-            plAA = BgenLoader.MAX_PL
-            plAB = 0
-            plBB = BgenLoader.MAX_PL
-          } else if (pBB == 32768) {
-            plAA = BgenLoader.MAX_PL
-            plAB = BgenLoader.MAX_PL
-            plBB = 0
-          } else {
-            val dAA = if (pAA == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAA)
-            val dAB = if (pAB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAB)
-            val dBB = if (pBB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pBB)
+        val dAA = BgenLoader.phredConversionTable(pAA)
+        val dAB = BgenLoader.phredConversionTable(pAB)
+        val dBB = BgenLoader.phredConversionTable(pBB)
 
-            val minValue = math.min(math.min(dAA, dAB), dBB)
+        val minValue = math.min(math.min(dAA, dAB), dBB)
 
-            plAA = (dAA - minValue + .5).toInt
-            plAB = (dAB - minValue + .5).toInt
-            plBB = (dBB - minValue + .5).toInt
-          }
+        plAA = (dAA - minValue + .5).toInt
+        plAB = (dAB - minValue + .5).toInt
+        plBB = (dBB - minValue + .5).toInt
 
-          assert(plAA == 0 || plAB == 0 || plBB == 0)
+        //if (arr(0) == "01" && arr(3).toInt == 1785424759 && i == 712 * 3 && arr(5) == "GGTGC")
+         // println(s"genLoader else sampleIndex=$i pAA=$pAA pAB=$pAB pBB=$pBB plAA=$plAA plAB=$plAB plBB=$plBB dAA=$dAA dAB=$dAB dBB=$dBB")
 
-          val gt = if (plAA == 0 && plAB == 0
-            || plAA == 0 && plBB == 0
-            || plAB == 0 && plBB == 0)
-            -1
-          else {
-            if (plAA == 0)
-              0
-            else if (plAB == 0)
-              1
-            else
-              2
-          }
+        assert(plAA == 0 || plAB == 0 || plBB == 0)
+
+        val gt = if (plAA == 0 && plAB == 0
+          || plAA == 0 && plBB == 0
+          || plAB == 0 && plBB == 0)
+          -1
+        else {
+          if (plAA == 0)
+            0
+          else if (plAB == 0)
+            1
+          else
+            2
+        }
+
+
 
         genoBuilder.clear()
         if (gt >= 0) {
@@ -99,6 +90,8 @@ object GenLoader {
         }
         b.write(genoBuilder)
 
+        //if (i == 712 * 3 && arr(0) == "01" && arr(3).toInt == 1785424759 && arr(5) == "GGTGC")
+          //println(s"genLoader plAA=$plAA plAB=$plAB plBB=$plBB gt=$gt")
       }
     (variant, annotations, b.result())
   }
