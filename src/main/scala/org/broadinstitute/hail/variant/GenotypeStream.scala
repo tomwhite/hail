@@ -101,9 +101,7 @@ object GenotypeStream {
 class GenotypeStreamBuilder(variant: Variant, b: mutable.ArrayBuilder.ofByte, compress: Boolean = true)
   extends mutable.Builder[Genotype, GenotypeStream] {
 
-  clear()
-
-  def this(variant: Variant, compress: Boolean = true) = this(variant, new mutable.ArrayBuilder.ofByte, compress)
+  val b = new mutable.ArrayBuilder.ofByte
 
   override def +=(g: Genotype): GenotypeStreamBuilder.this.type = {
     val gb = new GenotypeBuilder(variant)
