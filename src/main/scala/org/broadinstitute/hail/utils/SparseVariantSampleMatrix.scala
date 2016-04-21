@@ -13,8 +13,8 @@ class SparseVariantSampleMatrix(sampleIDs: IndexedSeq[String]) extends Serializa
   val nSamples = sampleIDs.length
   //var variantSampleIndex = 0
 
-  private val variants = mutable.HashMap[String, mutable.HashMap[String,GenotypeType]]()
-  private val samples = mutable.HashMap[String, mutable.HashMap[String, GenotypeType]]()
+  val variants = mutable.Map[String, mutable.Map[String,GenotypeType]]()
+  val samples = mutable.HashMap[String, mutable.HashMap[String, GenotypeType]]()
 
   def merge(that: SparseVariantSampleMatrix): SparseVariantSampleMatrix = {
 
@@ -79,6 +79,26 @@ class SparseVariantSampleMatrix(sampleIDs: IndexedSeq[String]) extends Serializa
       }
     }
     None
+  }
+
+
+  def cumulativeAF: Double = {
+
+    variants.aggregate(0.0)({(acc, variant) =>
+      //Count the number of called samples and the number of non-ref alleles
+      val counts = variant._2.foldLeft((0.0,0.0))({(acc2,g) =>
+        g match {
+          case GenotypeType.NoCall => (acc2._1, acc2._2 + 1)
+          case GenotypeType.Het => (acc2._1 + 1, acc2._2)
+          case GenotypeType.HomVar => (acc2._1 + 2, acc2._2)
+          case GenotypeType.HomRef => acc2 //This is only here for completeness sake and should never be used
+        }
+      })
+      counts._1/(nSamples - counts._2)
+    },
+      {(acc1,acc2) => (acc1 + acc2)
+    })
+
   }
 
 }

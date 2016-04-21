@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.driver
 
+import org.apache.spark.{HashPartitioner}
+import org.broadinstitute.hail.methods.{GeneBurden}
 import org.broadinstitute.hail.variant.{VariantDataset, VariantSampleMatrix}
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.utils.SparseVariantSampleMatrix
@@ -24,7 +26,10 @@ object RecessiveStatsCommand extends Command {
       var cg : String = ""
       @Args4jOption(required = false, name = "-cv", aliases = Array("--condition_variants"), usage = "Expression for filtering variants (non-filtered variants are considered functional)")
       var cv : String = ""
-
+      @Args4jOption(required = false, name = "-ai", aliases = Array("--affected_intervals"), usage = "BED interval file for affected individuals to be considered in the test (i.e. well covered, etc.)")
+      var ai : String = ""
+      @Args4jOption(required = false, name = "-ui", aliases = Array("--unaffected"), usage = "BED interval for unaffected individuals to be considered in the test (i.e. well covered, etc.)")
+      var ui : String = ""
     }
 
     def newOptions = new Options
@@ -58,20 +63,27 @@ object RecessiveStatsCommand extends Command {
       val casesGeneAnn = casesVDS.queryVA(options.gene_annotation)._2
       val controlsGeneAnn = controlsVDS.queryVA(options.gene_annotation)._2
 
-      val casesGT = casesVDS.aggregateByAnnotation(new SparseVariantSampleMatrix(casesVDS.sampleIds))({
+      val partitioner = new HashPartitioner(200)
+
+      val casesRDD = casesVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(casesVDS.sampleIds))({
         case(counter,v,va,s,sa,g) =>
           counter.addVariantGenotype(s,v.toString(),g)},{
         case(c1,c2) => c1.merge(c2)},
         {case (va) => casesGeneAnn(va)}
       )
 
-      val controlsGT = controlsVDS.aggregateByAnnotation(new SparseVariantSampleMatrix(controlsVDS.sampleIds))({
+      val controlsRDD = controlsVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(controlsVDS.sampleIds))({
         case(counter,v,va,s,sa,g) =>
           counter.addVariantGenotype(s,v.toString(),g)},{
         case(c1,c2) => c1.merge(c2)},
         {case (va) => controlsGeneAnn(va)}
       )
 
+      val callsByGene = casesRDD.join(controlsRDD)
+
+        callsByGene.map({case (gene, (cases,controls)) =>
+          (gene,new GeneBurden(cases,controls))
+        })
 
       state
     }

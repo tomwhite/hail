@@ -2,7 +2,7 @@ package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
 
-import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.{Partitioner, SparkContext, SparkEnv}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.broadinstitute.hail.Utils._
@@ -13,10 +13,9 @@ import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
 
 import scala.reflect.ClassTag
-
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
-import org.apache.spark.sql.types.{StructType, StructField}
+import org.apache.spark.sql.types.{StructField, StructType}
 
 object VariantSampleMatrix {
   final val magicNumber: Int = 0xe51e2c58
@@ -424,6 +423,14 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     seqOp: (V, Variant, Annotation, String, Annotation, T) => V,
     combOp: (V, V) => V,
     mapOp: Annotation => K)(implicit uct: ClassTag[K], vct: ClassTag[V]): RDD[(K, V)] = {
+    //TODO Check with Cotton that rdd.partitioner.get is safe enough
+      aggregateByAnnotation(rdd.partitioner.get,zeroValue)(seqOp,combOp,mapOp)
+  }
+
+  def aggregateByAnnotation[K,V](partitioner : Partitioner,zeroValue: V)(
+    seqOp: (V, Variant, Annotation, String, Annotation, T) => V,
+    combOp: (V, V) => V,
+    mapOp: Annotation => K)(implicit uct: ClassTag[K], vct: ClassTag[V]): RDD[(K, V)] = {
 
     // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
     val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
@@ -445,7 +452,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
             })
         }
       }
-      .reduceByKey(combOp)
+      .reduceByKey(partitioner,combOp)
   }
 
 
