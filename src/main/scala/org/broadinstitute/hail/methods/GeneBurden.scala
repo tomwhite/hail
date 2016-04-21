@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.methods.PhasedGenotypeType.PhasedGenotypeType
 import org.broadinstitute.hail.utils.SparseVariantSampleMatrix
-import org.broadinstitute.hail.variant.GenotypeType
+import org.broadinstitute.hail.variant.{Genotype, GenotypeType}
 import org.broadinstitute.hail.variant.GenotypeType._
 import org.apache.commons.math3.stat.inference
 import org.apache.commons.math3.stat.inference.{AlternativeHypothesis, BinomialTest}
@@ -34,8 +34,8 @@ class GeneBurden(val cases: SparseVariantSampleMatrix, val controls: SparseVaria
   var pValDom = 1
 
   //Stores variants / genotype info for all significantly enriched genes
-  val casesVariants = if(pValRec < 5e-5 || pValDom < 5e-5) cases.variants else mutable.HashMap[String, mutable.HashMap[String,GenotypeType]]()
-  val controlsVariants = if(pValRec < 5e-5 || pValDom < 5e-5) controls.variants else mutable.HashMap[String, mutable.HashMap[String,GenotypeType]]()
+  val casesVariants = if(pValRec < 5e-5 || pValDom < 5e-5) cases.variants else mutable.Map[String, mutable.Map[String,Genotype]]()
+  val controlsVariants = if(pValRec < 5e-5 || pValDom < 5e-5) controls.variants else mutable.Map[String, mutable.Map[String,Genotype]]()
 
   /** Public Functions **/
   override def toString(): String ={
@@ -67,7 +67,7 @@ class GeneBurden(val cases: SparseVariantSampleMatrix, val controls: SparseVaria
     vs.samples.foreach({ case (sampleID, variants) =>
       //Goes from Variant -> GT to GT -> Variants -- TODO: Unless Variant -> GT used elsewhere, change the representation in SVSM
       val byGT = variants.foldRight(Map[GenotypeType, List[String]]())({
-        case (variant, acc) => acc updated(variant._2, variant._1 :: acc.getOrElse(variant._2, List[String]()))
+        case (variant, acc) => acc updated(variant._2.gtType, variant._1 :: acc.getOrElse(variant._2.gtType, List[String]()))
       })
 
       //Count genotypes in order of deleteriousness
