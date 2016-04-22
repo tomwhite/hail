@@ -58,7 +58,7 @@ class GeneBurden(val cases: SparseVariantSampleMatrix, val controls: SparseVaria
       (phasingVariants(i).filter({case (k,v) => v == GenotypeType.Het || v == GenotypeType.HomVar}).keySet.intersect(
         phasingVariants(j).filter({case (k,v) => v == GenotypeType.Het || v == GenotypeType.HomVar}).keySet).size)
 
-    }).max > minPhasingSamples
+    }).max >= minPhasingSamples
   }
 
   private def getCounts(vs: SparseVariantSampleMatrix, phasingData: SparseVariantSampleMatrix, minPhasingSamples: Int = 1) : mutable.HashMap[PhasedGenotypeType,Int] = {
