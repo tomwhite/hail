@@ -54,9 +54,6 @@ object RecessiveStatsCommand extends Command {
 
     def run(state: State, options: Options): State = {
 
-
-      val controls_input = options.controls_input
-
       val casesVDS = filterVDS(state,options)
       val controlsVDS = filterVDS(State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)),options)
 

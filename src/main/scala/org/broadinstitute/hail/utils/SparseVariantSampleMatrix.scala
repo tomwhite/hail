@@ -82,6 +82,19 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
     None
   }
 
+  def getAC(variantID: String) : Int ={
+
+    variants.get(variantID) match{
+      case Some(sampleGenotypes) => sampleGenotypes.foldLeft(0)({
+        case(acc,(s,gt)) =>
+          if(gt.isHet){acc + 1}
+          else if(gt.isHomVar){acc + 2}
+          else{acc}
+      })
+      case None => 0
+    }
+
+  }
 
   def cumulativeAF: Double = {
 
