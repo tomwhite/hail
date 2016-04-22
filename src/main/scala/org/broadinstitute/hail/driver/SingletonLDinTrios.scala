@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.HashPartitioner
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.driver.SingletonLDinTrios.ParentOfOrigin.ParentOfOrigin
-import org.broadinstitute.hail.methods.{CompleteTrio, Filter, MendelErrors, Pedigree}
+import org.broadinstitute.hail.methods.{CompleteTrio, Filter, Pedigree}
 import org.broadinstitute.hail.utils.SparseVariantSampleMatrix
 import org.broadinstitute.hail.variant.GenotypeType.{GenotypeType => _, _}
 import org.broadinstitute.hail.variant._
@@ -11,7 +11,6 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
 import scala.language.postfixOps
-import scala.sys.process._
 
 object SingletonLDinTrios extends Command {
 
@@ -54,110 +53,140 @@ object SingletonLDinTrios extends Command {
     * Number of variant pairs
     *
     **/
-  class variantPairsCounter(val trios: SparseVariantSampleMatrix, val exac: SparseVariantSampleMatrix, val ped : Pedigree){
+  class variantPairsCounter(val trios: SparseVariantSampleMatrix, val exac: SparseVariantSampleMatrix, val ped : Pedigree) {
+
+    /** Stores the following:
+      * (AC1,AC2) => (
+      * #sites on the same trio haplotype,
+      * #Sites on different trio haplotypes,
+      * #Sites found co-seggregating in ExAC,
+      * #Sites found in ExAC but not co-seggregating
+      * #Sites on the same haplotype and found co-seggregating in ExAC
+      * #Sites on different haplotype and not co-seggregating in ExAC, although present
+      * */
+    var res = mutable.Map[(Int, Int), (Int, Int, Int, Int, Int, Int)]()
 
 
-    //Loop over the variants in the trios and gather the following data:
+    //Loop over the variants in the trios and gather the desired data:
+    ped.completeTrios.foreach({ case (trio) =>
+      //Get the list of unique pairs of het sites in the parents
+      //val trioVariantPairs = for( (i,j) <- getUniqueVariantPairsInParents(trio) if(canBePhased(i,j,trio))) yield {
+      // (exac.getAC(i), exac.getAC(j), isOnSameParentalHaplotype(i,j,trio),foundInSameSampleInExAC(i,j))
+      //}
 
-    var AC1 = Array[Int]()
-    var AC2 = Array[Int]()
-    var sameHap = Array[Boolean]()
-    var correctPhase = Array[Boolean]()
-
-
-    for(trio <- ped.completeTrios ){
-
-      //Check if either of the parents has two het sites
-      val dad = trios.getSample(trio.dad)
-      if(dad.isDefined){
-        val dadHets = for((variant,gt) <- dad.get; if(gt.isHet)) yield variant
-        if(dadHets.size>1){
-
-          for( i<-dadHets; j <- dadHets; if(i < j && canBePhased(i,j,trio))){
-            //Get trio-phasing and ExAC "Phasing"
-            val trioPhase = isOnSameParentalHaplotype(i,j,trio)
-            val exacACi = if(exac.variants.isDefinedAt(i)) exac.variants(i).foldLeft(0)({case(acc,(s,gt)) => 0}) else 0
-
-          }
-
+      //Compute and store results
+      getUniqueVariantPairsInParents(trio).foreach({ case (v1, v2) =>
+        //Only store results where sites could be trio-phased
+        isOnSameParentalHaplotype(v1, v2, trio) match {
+          case Some(sameTrioHap) =>
+            val k = (exac.getAC(v1), exac.getAC(v2))
+            //Check if could be found in ExAC
+            foundInSameSampleInExAC(v1, v2) match {
+              case Some(sameExacHap) =>
+                val v = (
+                  if (sameTrioHap) 1 else 0,
+                  if (sameTrioHap) 0 else 1,
+                  if (sameExacHap) 1 else 0,
+                  if (sameExacHap) 0 else 1,
+                  if (sameExacHap == sameTrioHap && sameTrioHap) 1 else 0,
+                  if (sameExacHap == sameTrioHap && !sameTrioHap) 1 else 0
+                  )
+                addResult(k, v)
+              case None =>
+                val v = (
+                  if (sameTrioHap) 1 else 0,
+                  if (sameTrioHap) 0 else 1,
+                  0, 0, 0, 0
+                  )
+                addResult(k, v)
+            }
         }
+
+      })
+    })
+
+    private def addResult(k: (Int, Int), v: (Int, Int, Int, Int, Int, Int)) = {
+      res.get(k) match {
+        case Some(pv) => res.update(k, (pv._1 + v._1, pv._2 + v._2, pv._3 + v._2, pv._4 + v._4, pv._5 + v._5, pv._6 + v._6))
+        case None => res.update(k, v)
       }
+    }
 
+    private def getUniqueVariantPairsInParents(trio: CompleteTrio): Set[(String, String)] = {
+      val momHetPairs = getHetVariantPairs(trios.getSample(trio.mom))
+      val dadHetPairs = getHetVariantPairs(trios.getSample(trio.dad))
+      //TODO Revisit this as there is probably a better solution
+      (momHetPairs ++ dadHetPairs) &~ (momHetPairs & dadHetPairs)
+    }
 
-
+    private def getHetVariantPairs(sampleGenotypes: Option[Map[String, Genotype]]): Set[(String, String)] = {
+      if (sampleGenotypes.isDefined) {
+        val hetSites = for ((variant, gt) <- sampleGenotypes.get; if (gt.isHet)) yield variant
+        return (for (i <- hetSites; j <- hetSites; if (i < j)) yield (i, j)).toSet
+      }
+      Set[(String, String)]()
     }
 
     //Returns parental origin when it can be inferred from the trio, or None if it cannot
-    private def parentalOrigin(kidGT: Option[Genotype], dadGT: Option[Genotype], momGT: Option[Genotype]): Option[ParentOfOrigin] ={
-        if(kidGT.isDefined && dadGT.isDefined && momGT.isDefined && kidGT.get.isHet){
-          if(dadGT.get.isHomRef && (momGT.get.isHet || momGT.get.isHomVar)) { return Some(ParentOfOrigin.Mom)}
-          else if(momGT.get.isHomRef && (dadGT.get.isHet || dadGT.get.isHomVar)){ return Some(ParentOfOrigin.Dad)}
-          else if(dadGT.get.isHet && momGT.get.isHomVar){return Some(ParentOfOrigin.Mom)}
-          else if(momGT.get.isHet && dadGT.get.isHomVar){return Some(ParentOfOrigin.Dad)}
+    private def parentalOrigin(kidGT: Option[Genotype], dadGT: Option[Genotype], momGT: Option[Genotype]): Option[ParentOfOrigin] = {
+      if (kidGT.isDefined && dadGT.isDefined && momGT.isDefined && kidGT.get.isHet) {
+        if (dadGT.get.isHomRef && (momGT.get.isHet || momGT.get.isHomVar)) {
+          return Some(ParentOfOrigin.Mom)
         }
-        None
+        else if (momGT.get.isHomRef && (dadGT.get.isHet || dadGT.get.isHomVar)) {
+          return Some(ParentOfOrigin.Dad)
+        }
+        else if (dadGT.get.isHet && momGT.get.isHomVar) {
+          return Some(ParentOfOrigin.Mom)
+        }
+        else if (momGT.get.isHet && dadGT.get.isHomVar) {
+          return Some(ParentOfOrigin.Dad)
+        }
+      }
+      None
     }
 
-    private def isOnSameParentalHaplotype(variantID1: String, variantID2: String, trio: CompleteTrio) : Option[Boolean] = {
+    private def isOnSameParentalHaplotype(variantID1: String, variantID2: String, trio: CompleteTrio): Option[Boolean] = {
 
-      val v1POO = parentalOrigin(trios.getGenotype(variantID1,trio.kid),trios.getGenotype(variantID1,trio.dad),trios.getGenotype(variantID1,trio.mom))
-      val v2POO = parentalOrigin(trios.getGenotype(variantID2,trio.kid),trios.getGenotype(variantID2,trio.dad),trios.getGenotype(variantID2,trio.mom))
+      val v1POO = parentalOrigin(trios.getGenotype(variantID1, trio.kid), trios.getGenotype(variantID1, trio.dad), trios.getGenotype(variantID1, trio.mom))
+      val v2POO = parentalOrigin(trios.getGenotype(variantID2, trio.kid), trios.getGenotype(variantID2, trio.dad), trios.getGenotype(variantID2, trio.mom))
 
       (v1POO, v2POO) match {
-        case (Some(v1poo), Some (v2poo)) => Some(v1poo == v2poo)
+        case (Some(v1poo), Some(v2poo)) => Some(v1poo == v2poo)
         case _ => None
       }
 
     }
 
-    private def canBePhased(variantID1: String, variantID2: String, trio: CompleteTrio) : Boolean = {
+    private def foundInSameSampleInExAC(variantID1: String, variantID2: String, minSamples: Int = 1): Option[Boolean] = {
 
-      val dadGT = trios.getGenotype(variantID1,trio.dad)
-      if(!dadGT.isDefined || dadGT.get.isNotCalled){return false}
+      (exac.variants.get(variantID1), exac.variants.get(variantID2)) match {
+        case (Some(v1), Some(v2)) => Some((exac.variants(variantID1).filter({ case (k, v) => v == GenotypeType.Het || v == GenotypeType.HomVar }).keySet.intersect(
+          exac.variants(variantID2).filter({ case (k, v) => v == GenotypeType.Het || v == GenotypeType.HomVar }).keySet).size) >= minSamples)
+        case _ => None
+      }
 
-      val momGT = trios.getGenotype(variantID1,trio.mom)
-      if(!momGT.isDefined || momGT.get.isNotCalled){return false}
-
-      val kidGT = trios.getGenotype(variantID1,trio.kid)
-      if(!kidGT.isDefined || kidGT.get.isNotCalled){return false}
-
-      !(dadGT.get.isHet && momGT.get.isHet && kidGT.get.isHet)
     }
-
-    private def foundInSameSampleInExAC(variantID1: String, variantID2: String, minSamples: Int = 1): Boolean ={
-      (exac.variants(variantID1).filter({case (k,v) => v == GenotypeType.Het || v == GenotypeType.HomVar}).keySet.intersect(
-        exac.variants(variantID2).filter({case (k,v) => v == GenotypeType.Het || v == GenotypeType.HomVar}).keySet).size) >= minSamples
-    }
-
-    private def isCompoundHet(variantIDs: List[String], phasingData: SparseVariantSampleMatrix, minPhasingSamples: Int = 1) : Boolean = {
-
-      val phasingVariants = phasingData.variants
-
-      //Loop over all pairs of variants (ordered lexicographically)
-      (for( i<-variantIDs; j <- variantIDs; if(i < j && phasingVariants.contains(i) && phasingVariants.contains(j))) yield{
-        //For each pair of variants, count how many samples carry both
-        (phasingVariants(i).filter({case (k,v) => v == GenotypeType.Het || v == GenotypeType.HomVar}).keySet.intersect(
-          phasingVariants(j).filter({case (k,v) => v == GenotypeType.Het || v == GenotypeType.HomVar}).keySet).size)
-
-      }).max > minPhasingSamples
-    }
-
-
   }
 
 
   def run(state: State, options: Options): State = {
+    //Read PED file
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds)
+
+    //List of contigs to consider
+    val autosomes = Range(1,23).map({c: Int => c.toString})
+    def autosomeFilter = {(v: Variant, va: Annotation) => autosomes.contains(v.contig)}
 
     //List individuals from trios where all family members are present
     //TODO: Check that completeTrios actually lists all complete trios in the fam file.
     val samplesInTrios = ped.completeTrios.foldLeft(List[String]())({case (acc,trio) => trio.mom::trio.dad::trio.kid::acc})
     //Filter trios and keep only complete trios
-    val trioVDS = state.vds.filterSamples((s: String, sa: Annotation) => Filter.keepThis(samplesInTrios.contains(s), true)))
+    val trioVDS = state.vds.filterSamples((s: String, sa: Annotation) => Filter.keepThis(samplesInTrios.contains(s), true)).filterVariants(autosomeFilter)
 
     //Load ExAC VDS, filter common samples and sites based on exac condition (AC)
     val exacVDS = FilterVariants.run(State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)),Array("-c",options.cexac)).vds.
-      filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false))
+      filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false)).filterVariants(autosomeFilter)
 
     //Get annotations
     val triosGeneAnn = trioVDS.queryVA(options.gene_annotation)._2
@@ -182,7 +211,7 @@ object SingletonLDinTrios extends Command {
 
     val callsByGene = triosRDD.join(exacRDD)
 
-
+    callsByGene.map({case(gene,(trios,exac)) => (gene,new variantPairsCounter(trios,exac,ped))})
 
     state
   }
