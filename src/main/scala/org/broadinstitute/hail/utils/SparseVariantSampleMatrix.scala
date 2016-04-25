@@ -55,31 +55,32 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
   }
 
   def getVariant(variantID: String): Option[Map[String,Genotype]] = {
-    if(variants.contains(variantID)) {
-      Some(variants.get(variantID).get.toMap)
+    variants.get(variantID) match{
+      case Some(variant) => Some(variant.toMap)
+      case None => None
     }
-    None
   }
 
   def getSample(sampleID: String): Option[Map[String,Genotype]] = {
-    if(sampleIDs.contains(sampleID)) {
-      if(samples.contains(sampleID)) {
-        Some(samples.get(sampleID).get.toMap)
-      }else{
-        Some(Map[String,Genotype]())
-      }
+
+    if(!sampleIDs.contains(sampleID)) { return None }
+
+    if(samples.contains(sampleID)) {
+      Some(samples.get(sampleID).get.toMap)
+    }else{
+      Some(Map[String,Genotype]())
     }
-    None
+
   }
 
   def getGenotype(variantID: String, sampleID:String) : Option[Genotype] = {
-    if (variants.contains(variantID) && sampleIDs.contains(sampleID)) {
-      variants.get(variantID).get.get(sampleID) match {
-        case (Some(g)) => Some(g)
-        case None => Some(Genotype(0)) //TODO find a way of not hardcoding this
-      }
+
+    if (!variants.contains(variantID) || !sampleIDs.contains(sampleID)) { return None }
+
+    variants.get(variantID).get.get(sampleID) match {
+      case (Some(g)) => Some(g)
+      case None => Some(Genotype(0)) //TODO find a way of not hardcoding this
     }
-    None
   }
 
   def getAC(variantID: String) : Int ={
