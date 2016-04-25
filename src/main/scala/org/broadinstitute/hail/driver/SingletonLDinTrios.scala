@@ -1,15 +1,13 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.HashPartitioner
-import org.broadinstitute.hail.RichRDD
+import org.broadinstitute.hail.{Logging, RichRDD}
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.driver.SingletonLDinTrios.ParentOfOrigin.ParentOfOrigin
-import org.broadinstitute.hail.methods.{CompleteTrio, Filter, Pedigree}
+import org.broadinstitute.hail.methods.{Filter, Pedigree}
 import org.broadinstitute.hail.utils.SparseVariantSampleMatrix
 import org.broadinstitute.hail.variant.GenotypeType.{GenotypeType => _, _}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
-
 
 import scala.collection.mutable
 import scala.language.postfixOps
@@ -55,7 +53,14 @@ object SingletonLDinTrios extends Command {
     * Number of variant pairs
     *
     **/
-  class variantPairsCounter(val trios: SparseVariantSampleMatrix, val exac: SparseVariantSampleMatrix, val ped : Pedigree) {
+
+   object VariantPairsCounter{
+    def getHeaderString() : String = {
+      "AC1\tAC2\tsameTrioHap\tdiffTrioHap\tcoInExAC\tnotCoInExAC\tsameHapTrioAndExAC\tdiffHapTrioAndExAC"
+    }
+  }
+
+  class VariantPairsCounter(val trios: SparseVariantSampleMatrix, val exac: SparseVariantSampleMatrix, val ped : Pedigree) extends Logging{
 
     /** Stores the following:
       * (AC1,AC2) => (
@@ -110,14 +115,14 @@ object SingletonLDinTrios extends Command {
 
     //Public functions
     override def toString() : String = {
-      res.foldLeft("")({case (resStr,((ac1,ac2),(sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC))) =>
-      resStr + "\n" + ("%d\t" * 8).format(ac1,ac2,sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC)})
+      res.map({case ((ac1,ac2),(sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC)) =>
+      ("%d\t" * 8).format(ac1,ac2,sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC)}).mkString("\r")
     }
 
     //Private functions
     private def addResult(k: (Int, Int), v: (Int, Int, Int, Int, Int, Int)) = {
       res.get(k) match {
-        case Some(pv) => res.update(k, (pv._1 + v._1, pv._2 + v._2, pv._3 + v._2, pv._4 + v._4, pv._5 + v._5, pv._6 + v._6))
+        case Some(pv) => res.update(k, (pv._1 + v._1, pv._2 + v._2, pv._3 + v._3, pv._4 + v._4, pv._5 + v._5, pv._6 + v._6))
         case None => res.update(k, v)
       }
     }
@@ -172,8 +177,12 @@ object SingletonLDinTrios extends Command {
     private def foundInSameSampleInExAC(variantID1: String, variantID2: String, minSamples: Int = 1): Option[Boolean] = {
 
       (exac.variants.get(variantID1), exac.variants.get(variantID2)) match {
-        case (Some(v1), Some(v2)) => Some((exac.variants(variantID1).filter({ case (k, v) => v == GenotypeType.Het || v == GenotypeType.HomVar }).keySet.intersect(
-          exac.variants(variantID2).filter({ case (k, v) => v == GenotypeType.Het || v == GenotypeType.HomVar }).keySet).size) >= minSamples)
+        case (Some(v1), Some(v2)) => Some((v1.filter({
+          case (k, v) => v.isHet || v.isHomVar
+        }).keySet.intersect(
+          v2.filter({
+            case (k, v) => v.isHet || v.isHomVar
+          }).keySet).size) >= minSamples)
         case _ => None
       }
 
@@ -223,9 +232,14 @@ object SingletonLDinTrios extends Command {
     val callsByGene = triosRDD.join(exacRDD)
 
     //write results
-    new RichRDD(callsByGene.map({case(gene,(trios,exac)) => (gene,new variantPairsCounter(trios,exac,ped))})).writeTable(
-      options.output
-    )
+    new RichRDD(callsByGene.map(
+      {case(gene,(trios,exac)) =>
+        val gString = gene match{
+          case Some(gene) => gene
+          case None => "NA"
+        }
+        gString + "\t" + (new VariantPairsCounter(trios,exac,ped)).toString()
+      })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
 
     state
   }
