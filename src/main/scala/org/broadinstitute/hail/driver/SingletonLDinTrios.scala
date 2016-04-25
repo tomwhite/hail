@@ -41,13 +41,6 @@ object SingletonLDinTrios extends Command {
   }
   def newOptions = new Options
 
-  object ParentOfOrigin extends Enumeration {
-    type ParentOfOrigin = Value
-    val Mom = Value("0")
-    val Dad = Value("1")
-    val Both = Value("2")
-  }
-
   /**
     * Records:
     * Number of variant pairs
@@ -73,13 +66,8 @@ object SingletonLDinTrios extends Command {
       * */
     var res = mutable.Map[(Int, Int), (Int, Int, Int, Int, Int, Int)]()
 
-
     //Loop over the variants in the trios and gather the desired data:
     ped.completeTrios.foreach({ case (trio) =>
-      //Get the list of unique pairs of het sites in the parents
-      //val trioVariantPairs = for( (i,j) <- getUniqueVariantPairsInParents(trio) if(canBePhased(i,j,trio))) yield {
-      // (exac.getAC(i), exac.getAC(j), isOnSameParentalHaplotype(i,j,trio),foundInSameSampleInExAC(i,j))
-      //}
 
       //Compute and store results
       //Variant pairs in father
@@ -127,6 +115,8 @@ object SingletonLDinTrios extends Command {
       }
     }
 
+    //Returns all pairs of variants for which the parent parentID is het at both sites, along with
+    //whether each of the variant pairs are on the same haplotype or not based on the transmission of alleles in the trio (or None if ambiguous / missing data)
     private def getHetPhasedVariantPairs(kidID: String, parentID: String, otherParentID: String) : List[(String,String,Option[Boolean])] = {
       (trios.getSample(parentID) match {
         case Some(genotypes) => {
@@ -162,6 +152,9 @@ object SingletonLDinTrios extends Command {
     }
 
 
+    //Given two variants that are het in a parent, computes whether they are on the same haplotype or not based on
+    //the child and the otherParent in the trio.
+    //Returns None if ambiguous or missing datta
     private def isOnSameParentalHaplotype(variantID1: String, variantID2: String, kidID: String, otherParentID: String): Option[Boolean] = {
 
       val v1POO = isHetSiteTransmitted(trios.getGenotype(variantID1, kidID), trios.getGenotype(variantID1, otherParentID))
@@ -174,6 +167,8 @@ object SingletonLDinTrios extends Command {
 
     }
 
+    //Given two variants, check if any sample in ExAC carries both of these variants. Then compares the number of samples carrying
+    //both variants to the minSamples.
     private def foundInSameSampleInExAC(variantID1: String, variantID2: String, minSamples: Int = 1): Option[Boolean] = {
 
       (exac.variants.get(variantID1), exac.variants.get(variantID2)) match {
