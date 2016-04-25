@@ -77,6 +77,7 @@ object ToplevelCommands {
   register(Repartition)
   register(SampleQC)
   register(ShowAnnotations)
+  register(SingletonLDinTrios)
   register(VariantQC)
   register(VEP)
   register(Write)
