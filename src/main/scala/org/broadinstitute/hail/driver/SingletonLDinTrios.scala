@@ -217,14 +217,14 @@ object SingletonLDinTrios extends Command {
       case(counter,v,va,s,sa,g) =>
         counter.addVariantGenotype(v.toString(),s,g)},{
       case(c1,c2) => c1.merge(c2)},
-      {case (va) => triosGeneAnn(va)}
+      {case (v,va) => triosGeneAnn(va)}
     )
 
     val exacRDD = exacVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
       case(counter,v,va,s,sa,g) =>
         counter.addVariantGenotype(v.toString(),s,g)},{
       case(c1,c2) => c1.merge(c2)},
-      {case (va) => exacGeneAnn(va)}
+      {case (v,va) => exacGeneAnn(va)}
     )
 
     val callsByGene = triosRDD.join(exacRDD)
