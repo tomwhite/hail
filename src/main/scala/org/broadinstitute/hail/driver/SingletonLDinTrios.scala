@@ -37,6 +37,9 @@ object SingletonLDinTrios extends Command {
     @Args4jOption(required = false, name = "-cexac", aliases = Array("--condition_AC"), usage = "Condition to apply to ExAC for filtering down the number of variants. Default is AC < 200")
     var cexac: String = "va.AC < 200"
 
+    @Args4jOption(required = true, name = "-p", aliases = Array("--partitions_number"), usage = "Number of partitions to use for gene aggregation.")
+    var number_partitions: Int = 200
+
 
   }
   def newOptions = new Options
@@ -208,7 +211,7 @@ object SingletonLDinTrios extends Command {
     //val triosConsAnn = trioVDS.queryVA(options.consequence_annotation)._2
     val exacGeneAnn = exacVDS.queryVA(options.gene_annotation)._2
 
-    val partitioner = new HashPartitioner(200)
+    val partitioner = new HashPartitioner(options.number_partitions)
 
     val triosRDD = trioVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(trioVDS.sampleIds))({
       case(counter,v,va,s,sa,g) =>
