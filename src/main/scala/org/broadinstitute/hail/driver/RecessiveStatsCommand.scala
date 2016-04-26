@@ -66,14 +66,14 @@ object RecessiveStatsCommand extends Command {
         case(counter,v,va,s,sa,g) =>
           counter.addVariantGenotype(v.toString(),s,g)},{
         case(c1,c2) => c1.merge(c2)},
-        {case (va) => casesGeneAnn(va)}
+        {case (v,va) => casesGeneAnn(va)}
       )
 
       val controlsRDD = controlsVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(controlsVDS.sampleIds))({
         case(counter,v,va,s,sa,g) =>
           counter.addVariantGenotype(v.toString(),s,g)},{
         case(c1,c2) => c1.merge(c2)},
-        {case (va) => controlsGeneAnn(va)}
+        {case (v,va) => controlsGeneAnn(va)}
       )
 
       val callsByGene = casesRDD.join(controlsRDD)
