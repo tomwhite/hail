@@ -88,7 +88,7 @@ object GTCountByAnnotation extends Command {
       case(counter,v,va,s,sa,g) =>
         counter.addGenotype(g)},{
       case(c1,c2) => c1.merge(c2)},
-      {case (va) =>
+      {case (v,va) =>
         annList.map(a => a(va))
         }
     ).collect()

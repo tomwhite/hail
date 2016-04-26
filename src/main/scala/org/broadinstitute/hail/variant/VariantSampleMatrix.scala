@@ -423,7 +423,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def aggregateByAnnotation[K,V](zeroValue: V)(
     seqOp: (V, Variant, Annotation, String, Annotation, T) => V,
     combOp: (V, V) => V,
-    mapOp: Annotation => K)(implicit uct: ClassTag[K], vct: ClassTag[V]): RDD[(K, V)] = {
+    mapOp: (Variant, Annotation) => K)(implicit uct: ClassTag[K], vct: ClassTag[V]): RDD[(K, V)] = {
 
     // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
     val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
@@ -438,7 +438,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         val serializer = SparkEnv.get.serializer.newInstance()
         it.map { case (v, va, gs) =>
           val zeroValue = serializer.deserialize[V](ByteBuffer.wrap(zeroArray))
-          (mapOp(va), gs.iterator.zipWithIndex.map {
+          (mapOp(v,va), gs.iterator.zipWithIndex.map {
             case (g, i) => (localSampleIdsBc.value(i), localSampleAnnotationsBc.value(i), g) }
             .foldLeft(zeroValue) { case (acc, (s, sa, g)) =>
               seqOp(acc, v, va, s, sa, g)
