@@ -35,7 +35,7 @@ object SingletonLDinTrios extends Command {
     //var consequence_annotation: String = _
 
     @Args4jOption(required = false, name = "-cexac", aliases = Array("--condition_AC"), usage = "Condition to apply to ExAC for filtering down the number of variants. Default is AC < 200")
-    var cexac: String = "va.AC < 200"
+    var cexac: String = "va.info.AC[0] < 200"
 
     @Args4jOption(required = true, name = "-p", aliases = Array("--partitions_number"), usage = "Number of partitions to use for gene aggregation.")
     var number_partitions: Int = 200
