@@ -34,8 +34,8 @@ object SingletonLDinTrios extends Command {
     //@Args4jOption(required = true, name = "-c", aliases = Array("--consequence_annotation"), usage = "Annotation storing the gene information for aggregation")
     //var consequence_annotation: String = _
 
-    @Args4jOption(required = false, name = "-cexac", aliases = Array("--condition_AC"), usage = "Condition to apply to ExAC for filtering down the number of variants. Default is AC < 200")
-    var cexac: String = "va.info.AC[0] < 200"
+    //@Args4jOption(required = false, name = "-cexac", aliases = Array("--condition_AC"), usage = "Condition to apply to ExAC for filtering down the number of variants. Default is AC < 200")
+    //var cexac: String = "va.info.AC[0] < 200"
 
     @Args4jOption(required = true, name = "-p", aliases = Array("--partitions_number"), usage = "Number of partitions to use for gene aggregation.")
     var number_partitions: Int = 200
@@ -56,7 +56,7 @@ object SingletonLDinTrios extends Command {
     }
   }
 
-  class VariantPairsCounter(val trios: SparseVariantSampleMatrix, val exac: SparseVariantSampleMatrix, val ped : Pedigree) extends Logging{
+  class VariantPairsCounter(val trios: SparseVariantSampleMatrix, val ped : Pedigree) extends Logging{
 
     /** Stores the following:
       * (AC1,AC2) => (
@@ -69,18 +69,36 @@ object SingletonLDinTrios extends Command {
       * */
     var res = mutable.Map[(Int, Int), (Int, Int, Int, Int, Int, Int)]()
 
-    //Loop over the variants in the trios and gather the desired data:
-    ped.completeTrios.foreach({ case (trio) =>
+    val variantPairs = (for(trio <- ped.completeTrios) yield{
+      getHetPhasedVariantPairs(trio.kid,trio.dad,trio.mom) ::: getHetPhasedVariantPairs(trio.kid,trio.mom,trio.dad)
+    }).flatten
 
-      //Compute and store results
-      //Variant pairs in father
-      val variantPairs = getHetPhasedVariantPairs(trio.kid,trio.dad,trio.mom) ::: getHetPhasedVariantPairs(trio.kid,trio.mom,trio.dad)
+
+
+    //Public functions
+    override def toString() : String = {
+      res.map({case ((ac1,ac2),(sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC)) =>
+      ("%d\t" * 8).format(ac1,ac2,sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC)}).mkString("\r")
+    }
+
+    def getHetSites() : Set[String] = {
+      variantPairs.flatMap({case (v1,v2,phase) => List(v1,v2)}).toSet
+    }
+
+    def this(trios: SparseVariantSampleMatrix, exac : SparseVariantSampleMatrix , ped : Pedigree) = {
+      this(trios,ped)
+      computeExACphase(exac)
+    }
+
+
+    //Private functions
+    private def computeExACphase(exac : SparseVariantSampleMatrix) = {
       variantPairs.foreach({ case (v1, v2, sameTrioHap) =>
         //Only store results where sites could be trio-phased
-        if(sameTrioHap.isDefined){
+        if (sameTrioHap.isDefined) {
           val k = (exac.getAC(v1), exac.getAC(v2))
           //Check if could be found in ExAC
-          foundInSameSampleInExAC(v1, v2) match {
+          foundInSameSampleInExAC(exac,v1, v2) match {
             case Some(sameExacHap) =>
               val v = (
                 if (sameTrioHap.get) 1 else 0,
@@ -101,16 +119,8 @@ object SingletonLDinTrios extends Command {
           }
         }
       })
-    })
-
-
-    //Public functions
-    override def toString() : String = {
-      res.map({case ((ac1,ac2),(sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC)) =>
-      ("%d\t" * 8).format(ac1,ac2,sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC)}).mkString("\r")
     }
 
-    //Private functions
     private def addResult(k: (Int, Int), v: (Int, Int, Int, Int, Int, Int)) = {
       res.get(k) match {
         case Some(pv) => res.update(k, (pv._1 + v._1, pv._2 + v._2, pv._3 + v._3, pv._4 + v._4, pv._5 + v._5, pv._6 + v._6))
@@ -172,7 +182,7 @@ object SingletonLDinTrios extends Command {
 
     //Given two variants, check if any sample in ExAC carries both of these variants. Then compares the number of samples carrying
     //both variants to the minSamples.
-    private def foundInSameSampleInExAC(variantID1: String, variantID2: String, minSamples: Int = 1): Option[Boolean] = {
+    private def foundInSameSampleInExAC(exac: SparseVariantSampleMatrix, variantID1: String, variantID2: String, minSamples: Int = 1): Option[Boolean] = {
 
       (exac.variants.get(variantID1), exac.variants.get(variantID2)) match {
         case (Some(v1), Some(v2)) => Some((v1.filter({
@@ -190,7 +200,7 @@ object SingletonLDinTrios extends Command {
 
   def run(state: State, options: Options): State = {
     //Read PED file
-    val ped = Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds)
+    val ped = state.sc.broadcast(Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds))
 
     //List of contigs to consider
     val autosomes = Range(1,23).map({c: Int => c.toString})
@@ -198,18 +208,14 @@ object SingletonLDinTrios extends Command {
 
     //List individuals from trios where all family members are present
     //TODO: Check that completeTrios actually lists all complete trios in the fam file.
-    val samplesInTrios = ped.completeTrios.foldLeft(List[String]())({case (acc,trio) => trio.mom::trio.dad::trio.kid::acc})
+    val samplesInTrios = ped.value.completeTrios.foldLeft(List[String]())({case (acc,trio) => trio.mom::trio.dad::trio.kid::acc})
     //Filter trios and keep only complete trios
     val trioVDS = state.vds.filterSamples((s: String, sa: Annotation) => Filter.keepThis(samplesInTrios.contains(s), true)).filterVariants(autosomeFilter)
 
-    //Load ExAC VDS, filter common samples and sites based on exac condition (AC)
-    val exacVDS = FilterVariants.run(State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)),Array("-c",options.cexac,"--keep")).vds.
-      filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false)).filterVariants(autosomeFilter)
 
     //Get annotations
     val triosGeneAnn = trioVDS.queryVA(options.gene_annotation)._2
     //val triosConsAnn = trioVDS.queryVA(options.consequence_annotation)._2
-    val exacGeneAnn = exacVDS.queryVA(options.gene_annotation)._2
 
     val partitioner = new HashPartitioner(options.number_partitions)
 
@@ -219,6 +225,25 @@ object SingletonLDinTrios extends Command {
       case(c1,c2) => c1.merge(c2)},
       {case (v,va) => triosGeneAnn(va)}
     )
+
+    //Get unique variants that are found in pairs in our samples
+    val uniqueVariants = triosRDD.map({
+      case(gene,svm) => new VariantPairsCounter(svm,ped.value).getHetSites()}).reduce(
+      {case(v1,v2) => v1 ++ v2}
+    )
+
+    val bcUniqueVariants = state.sc.broadcast(uniqueVariants)
+
+    def variantsOfInterestFilter = {(v: Variant, va: Annotation) => bcUniqueVariants.value.contains(v.toString)}
+    
+    //Load ExAC VDS, filter common samples and sites based on exac condition (AC)
+    //val exacVDS = FilterVariants.run(State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)),Array("-c",options.cexac,"--keep")).vds.
+    //  filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false)).filterVariants(autosomeFilter)
+
+    val exacVDS = State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)).vds.
+      filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false)).filterVariants(variantsOfInterestFilter)
+
+    val exacGeneAnn = exacVDS.queryVA(options.gene_annotation)._2
 
     val exacRDD = exacVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
       case(counter,v,va,s,sa,g) =>
@@ -236,7 +261,7 @@ object SingletonLDinTrios extends Command {
           case Some(gene) => gene
           case None => "NA"
         }
-        gString + "\t" + (new VariantPairsCounter(trios,exac,ped)).toString()
+        gString + "\t" + (new VariantPairsCounter(trios,exac,ped.value)).toString()
       })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
 
     state
