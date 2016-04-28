@@ -195,6 +195,58 @@ object SingletonLDinTrios extends Command {
       }
 
     }
+
+    private def phaseWithEM(exac: SparseVariantSampleMatrix, variantID1: String, variantID2: String) : Option[Boolean] = {
+
+      //Count the number of AABB AaBB aaBB AABb AaBb aaBb AAbb Aabb aabb
+      val gtCounts = exac.sampleIDs.foldLeft(new Array[Int](9))({case (acc,s) =>
+
+        (exac.getGenotype(variantID1,s) ,exac.getGenotype(variantID2,s)) match{
+          case (Some(gt1),Some(gt2)) => {
+            if(gt1.isHomRef){
+              if(gt2.isHomRef){acc(1)+=1}
+              else if(gt2.isHet){acc(4)+=1}
+              else if(gt2.isHomVar){acc(7)+=1}
+            }
+            else if(gt1.isHet){
+              if(gt2.isHomRef){acc(2)+=1}
+              else if(gt2.isHet){acc(5)+=1}
+              else if(gt2.isHomVar){acc(8)+=1}
+            }
+            else if(gt1.isHomVar){
+              if(gt2.isHomRef){acc(3)+=1}
+              else if(gt2.isHet){acc(6)+=1}
+              else if(gt2.isHomVar){acc(9)+=1}
+            }
+          }
+          case _ =>
+        }
+        acc
+      })
+
+      val nSamples = gtCounts.foldLeft(0)({case (acc,x) => acc+x})
+
+      var p_cur = Array[Double](
+        2*gtCounts(0) + gtCounts(1) + gtCounts(3)+ gtCounts(4)/2,  //n.AB
+        2*gtCounts(6) + gtCounts(3) + gtCounts(7) + gtCounts(4)/2, //n.Ab
+        2*gtCounts(2) + gtCounts(1) + gtCounts(5) + gtCounts(4)/2, //n.aB
+        2*gtCounts(8) + gtCounts(5) + gtCounts(7) + gtCounts(4)/2  //n.ab
+      ).map(x => x/(2*nSamples))
+      var p_next = p_cur
+      var discrepancy = 1.0
+
+      while(discrepancy > 10e-7){
+
+        p_cur = p_next
+
+        //E step
+
+
+      }
+
+      None
+    }
+
   }
 
 
@@ -223,7 +275,7 @@ object SingletonLDinTrios extends Command {
       case(counter,v,va,s,sa,g) =>
         counter.addVariantGenotype(v.toString(),s,g)},{
       case(c1,c2) => c1.merge(c2)},
-      {case (v,va) => triosGeneAnn(va)}
+      {case (v,va) => triosGeneAnn(va).getOrElse("None").toString}
     )
 
     //Get unique variants that are found in pairs in our samples
@@ -235,7 +287,7 @@ object SingletonLDinTrios extends Command {
     val bcUniqueVariants = state.sc.broadcast(uniqueVariants)
 
     def variantsOfInterestFilter = {(v: Variant, va: Annotation) => bcUniqueVariants.value.contains(v.toString)}
-    
+
     //Load ExAC VDS, filter common samples and sites based on exac condition (AC)
     //val exacVDS = FilterVariants.run(State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)),Array("-c",options.cexac,"--keep")).vds.
     //  filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false)).filterVariants(autosomeFilter)
@@ -249,7 +301,7 @@ object SingletonLDinTrios extends Command {
       case(counter,v,va,s,sa,g) =>
         counter.addVariantGenotype(v.toString(),s,g)},{
       case(c1,c2) => c1.merge(c2)},
-      {case (v,va) => exacGeneAnn(va)}
+      {case (v,va) => exacGeneAnn(va).getOrElse("None").toString}
     )
 
     val callsByGene = triosRDD.join(exacRDD)
@@ -257,11 +309,7 @@ object SingletonLDinTrios extends Command {
     //write results
     new RichRDD(callsByGene.map(
       {case(gene,(trios,exac)) =>
-        val gString = gene match{
-          case Some(gene) => gene
-          case None => "NA"
-        }
-        gString + "\t" + (new VariantPairsCounter(trios,exac,ped.value)).toString()
+        gene + "\t" + (new VariantPairsCounter(trios,exac,ped.value)).toString()
       })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
 
     state
