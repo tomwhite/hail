@@ -85,7 +85,7 @@ object GTCountByAnnotation extends Command {
 
 
     val annAgg = vds.aggregateByAnnotation(new GTCounter())({
-      case(counter,v,va,s,sa,g) =>
+      case(counter,v,va,s,sa,i,g) =>
         counter.addGenotype(g)},{
       case(c1,c2) => c1.merge(c2)},
       {case (v,va) =>
