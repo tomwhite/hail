@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.driver
 
+import breeze.linalg.SparseVector
 import org.apache.spark.HashPartitioner
 import org.broadinstitute.hail.{Logging, RichRDD}
 import org.broadinstitute.hail.annotations._
@@ -37,7 +38,7 @@ object SingletonLDinTrios extends Command {
     //@Args4jOption(required = false, name = "-cexac", aliases = Array("--condition_AC"), usage = "Condition to apply to ExAC for filtering down the number of variants. Default is AC < 200")
     //var cexac: String = "va.info.AC[0] < 200"
 
-    @Args4jOption(required = true, name = "-p", aliases = Array("--partitions_number"), usage = "Number of partitions to use for gene aggregation.")
+    @Args4jOption(required = false, name = "-p", aliases = Array("--partitions_number"), usage = "Number of partitions to use for gene aggregation.")
     var number_partitions: Int = 200
 
 
@@ -184,7 +185,7 @@ object SingletonLDinTrios extends Command {
     //both variants to the minSamples.
     private def foundInSameSampleInExAC(exac: SparseVariantSampleMatrix, variantID1: String, variantID2: String, minSamples: Int = 1): Option[Boolean] = {
 
-      (exac.variants.get(variantID1), exac.variants.get(variantID2)) match {
+      (exac.getVariant(variantID1), exac.getVariant(variantID2)) match {
         case (Some(v1), Some(v2)) => Some((v1.filter({
           case (k, v) => v.isHet || v.isHomVar
         }).keySet.intersect(
@@ -272,8 +273,8 @@ object SingletonLDinTrios extends Command {
     val partitioner = new HashPartitioner(options.number_partitions)
 
     val triosRDD = trioVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(trioVDS.sampleIds))({
-      case(counter,v,va,s,sa,g) =>
-        counter.addVariantGenotype(v.toString(),s,g)},{
+      case(counter,v,va,s,sa,i,g) =>
+        counter.addGenotype(v.toString(),i,g)},{
       case(c1,c2) => c1.merge(c2)},
       {case (v,va) => triosGeneAnn(va).getOrElse("None").toString}
     )
@@ -298,13 +299,16 @@ object SingletonLDinTrios extends Command {
     val exacGeneAnn = exacVDS.queryVA(options.gene_annotation)._2
 
     val exacRDD = exacVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
-      case(counter,v,va,s,sa,g) =>
-        counter.addVariantGenotype(v.toString(),s,g)},{
+      case(counter,v,va,s,sa,i,g) =>
+        counter.addGenotype(v.toString(),i,g)},{
       case(c1,c2) => c1.merge(c2)},
       {case (v,va) => exacGeneAnn(va).getOrElse("None").toString}
     )
 
+
     val callsByGene = triosRDD.join(exacRDD)
+
+    //val x = new SparseVector()
 
     //write results
     new RichRDD(callsByGene.map(

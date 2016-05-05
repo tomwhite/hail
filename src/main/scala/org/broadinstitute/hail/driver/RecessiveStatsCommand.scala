@@ -63,15 +63,15 @@ object RecessiveStatsCommand extends Command {
       val partitioner = new HashPartitioner(200)
 
       val casesRDD = casesVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(casesVDS.sampleIds))({
-        case(counter,v,va,s,sa,g) =>
-          counter.addVariantGenotype(v.toString(),s,g)},{
+        case(counter,v,va,s,sa,i,g) =>
+          counter.addGenotype(v.toString(),i,g)},{
         case(c1,c2) => c1.merge(c2)},
         {case (v,va) => casesGeneAnn(va)}
       )
 
       val controlsRDD = controlsVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(controlsVDS.sampleIds))({
-        case(counter,v,va,s,sa,g) =>
-          counter.addVariantGenotype(v.toString(),s,g)},{
+        case(counter,v,va,s,sa,i,g) =>
+          counter.addGenotype(v.toString(),i,g)},{
         case(c1,c2) => c1.merge(c2)},
         {case (v,va) => controlsGeneAnn(va)}
       )

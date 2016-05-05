@@ -24,6 +24,7 @@ object PhasedGenotypeType extends  Enumeration{
 //class GeneBurden(val caseCounts : mutable.HashMap[PhasedGenotypeType,Int],val controlCounts : mutable.HashMap[PhasedGenotypeType,Int], val cumulAF : Double)  {
 class GeneBurden(val cases: SparseVariantSampleMatrix, val controls: SparseVariantSampleMatrix){
 
+  /**
   //Compute counts
   val casesCounts = getCounts(cases, controls)
   val controlsCounts = getCounts(controls, controls,2)
@@ -91,7 +92,7 @@ class GeneBurden(val cases: SparseVariantSampleMatrix, val controls: SparseVaria
 
     res
   }
-
+**/
 
 }
 
