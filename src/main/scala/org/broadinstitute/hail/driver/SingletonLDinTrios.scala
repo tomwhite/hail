@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.driver
 
+import java.io.{BufferedWriter, File, FileWriter}
+
 import breeze.linalg.SparseVector
 import org.apache.spark.HashPartitioner
 import org.broadinstitute.hail.{Logging, RichRDD}
@@ -285,6 +287,14 @@ object SingletonLDinTrios extends Command {
       {case(v1,v2) => v1 ++ v2}
     )
 
+    val file = new File(options.output)
+    val bw = new BufferedWriter(new FileWriter(file))
+    uniqueVariants.foreach({
+      case(v) =>  bw.write(v+"\n")
+    })
+    bw.close()
+    /**
+
     val bcUniqueVariants = state.sc.broadcast(uniqueVariants)
 
     def variantsOfInterestFilter = {(v: Variant, va: Annotation) => bcUniqueVariants.value.contains(v.toString)}
@@ -315,7 +325,7 @@ object SingletonLDinTrios extends Command {
       {case(gene,(trios,exac)) =>
         gene + "\t" + (new VariantPairsCounter(trios,exac,ped.value)).toString()
       })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
-
+**/
     state
   }
 }
