@@ -40,7 +40,7 @@ object VariantSampleMatrix {
     val metadataFile = dirname + "/metadata.ser"
 
     if (!hadoopExists(hConf, pqtSuccess))
-      fatal("corrupt VDS: no parquet success indicator, meaning a problem occurred during write.  Recreate VDS.")
+      fatal(dirname + "corrupt VDS: no parquet success indicator, meaning a problem occurred during write.  Recreate VDS.")
 
     if (!hadoopExists(hConf, metadataFile))
       fatal("corrupt VDS: no metadata.ser file.  Recreate VDS.")
