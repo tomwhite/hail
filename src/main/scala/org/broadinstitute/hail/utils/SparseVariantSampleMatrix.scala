@@ -13,6 +13,8 @@ import scala.collection.immutable.VectorBuilder
 import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.reflect.ClassTag
+import org.broadinstitute.hail.Utils._
+
 
 /**
   * Created by laurent on 4/19/16.
@@ -113,6 +115,8 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
   if(sindices.isEmpty){ buildSampleView() }
 
    val nextSampleIndex = if(sindices.size > sampleIndex+1) sindices(sampleIndex+1) else s_vindices.size
+
+   info("variants: "+variants.size+", v_sindices: "+v_sindices.size + ", vindices: "+ vindices.size + ", v_genotypes: " + v_genotypes.size + ", samples:" +nSamples + "s_vindices: "+s_vindices.size + ", sindices" + sindices.size + ", s_genotypes: "+s_genotypes.size +", sampleIndex: "+sampleIndex+", nextSampleInde: "+nextSampleIndex)
 
    Some(
      (for(gindex <- s_vindices.slice(sindices(sampleIndex),nextSampleIndex)) yield{

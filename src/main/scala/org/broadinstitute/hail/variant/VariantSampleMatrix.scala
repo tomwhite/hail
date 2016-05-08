@@ -16,7 +16,6 @@ import scala.reflect.ClassTag
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 import org.apache.spark.sql.types.{StructField, StructType}
-import org.broadinstitute.hail.utils.SparseVariantSampleMatrix
 
 object VariantSampleMatrix {
   final val magicNumber: Int = 0xe51e2c58
