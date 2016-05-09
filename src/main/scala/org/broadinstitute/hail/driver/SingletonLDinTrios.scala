@@ -2,7 +2,8 @@ package org.broadinstitute.hail.driver
 
 import java.io.{BufferedWriter, File, FileWriter}
 
-import breeze.linalg.SparseVector
+import breeze.linalg.{DenseVector, SparseVector, max, sum}
+import breeze.numerics.abs
 import org.apache.spark.HashPartitioner
 import org.broadinstitute.hail.{Logging, RichRDD}
 import org.broadinstitute.hail.annotations._
@@ -56,22 +57,112 @@ object SingletonLDinTrios extends Command {
 
    object VariantPairsCounter{
     def getHeaderString() : String = {
-      "AC1\tAC2\tsameTrioHap\tdiffTrioHap\tcoInExAC\tnotCoInExAC\tsameHapTrioAndExAC\tdiffHapTrioAndExAC"
+      "AC1\tAC2\tsameTrioHap\tdiffTrioHap\tcoInExAC\tnotCoInExAC\tsameHapTrioAndExAC\tdiffHapTrioAndExAC\tsameHapExACEM\tdiffHapExACEM\tsameHapTrioAndExACEM\tdiffHapTrioAndExACEM"
     }
   }
 
   class VariantPairsCounter(val trios: SparseVariantSampleMatrix, val ped : Pedigree) extends Logging{
 
-    /** Stores the following:
-      * (AC1,AC2) => (
+    /** Stores the following results:
       * #sites on the same trio haplotype,
       * #Sites on different trio haplotypes,
       * #Sites found co-seggregating in ExAC,
       * #Sites found in ExAC but not co-seggregating
       * #Sites on the same haplotype and found co-seggregating in ExAC
       * #Sites on different haplotype and not co-seggregating in ExAC, although present
+      * #Sites on the same haplotype in ExAC based on EM
+      * #Sites on different haplotype in ExAC based on EM
+      * #Sites on the same haplotype in ExAC based on EM and on the same trio haplotype
+      * #Sites on different haplotype in ExAC based on EM and on different trio haplotype
       * */
-    var res = mutable.Map[(Int, Int), (Int, Int, Int, Int, Int, Int)]()
+    class VPCResult {
+
+      //Numbers from trio inheritance
+      var nSameTrioHap = 0
+      var nDiffTrioHap = 0
+
+      //Numbers from naive found/not found in ExAC
+      var nCoSegExAC = 0
+      var nNonCoSegExac = 0
+      var nCoSegExACandSameTrioHap = 0
+      var nNonCoSegExACandDiffTrioHap = 0
+
+      //Numbers from EM
+      var nSameHapExAC = 0
+      var nDiffHapExac = 0
+      var nSameHapExACandSameHapTrio = 0
+      var nDiffHapExACandDiffHapTrio = 0
+
+      def this(sameTrioHap : Boolean){
+        this()
+        nSameTrioHap = if(sameTrioHap) 1 else 0
+        nDiffTrioHap = if(sameTrioHap) 0 else 1
+      }
+
+      def coSegExAC(coseg : Boolean, sameTrioHap : Boolean) ={
+        if(coseg){
+          nCoSegExAC += 1
+          if(sameTrioHap){
+            nCoSegExACandSameTrioHap += 1
+          }
+        }else{
+          nNonCoSegExac +=1
+          if(!sameTrioHap){
+            nNonCoSegExACandDiffTrioHap += 1
+          }
+        }
+      }
+
+      def sameHapExAC(sameHap : Boolean, sameTrioHap : Boolean) ={
+        if(sameHap){
+          nSameHapExAC += 1
+          if(sameTrioHap){
+            nSameHapExACandSameHapTrio += 1
+          }
+        }else{
+          nDiffHapExac +=1
+          if(!sameTrioHap){
+            nDiffHapExACandDiffHapTrio += 1
+          }
+        }
+      }
+
+      def add(that: VPCResult): VPCResult ={
+         nSameTrioHap += that.nSameTrioHap
+         nDiffTrioHap += that.nDiffTrioHap
+
+        //Numbers from naive += that.naive found/not found in ExAC
+         nCoSegExAC += that.nCoSegExAC
+         nNonCoSegExac += that.nNonCoSegExac
+         nCoSegExACandSameTrioHap += that.nCoSegExACandSameTrioHap
+         nNonCoSegExACandDiffTrioHap += that.nNonCoSegExACandDiffTrioHap
+
+        //Numbers from EM
+         nSameHapExAC += that.nSameHapExAC
+         nDiffHapExac += that.nDiffHapExac
+         nSameHapExACandSameHapTrio += that.nSameHapExACandSameHapTrio
+         nDiffHapExACandDiffHapTrio += that.nDiffHapExACandDiffHapTrio
+        this
+      }
+
+      override def toString() : String = {
+        (("%d\t" * 9) + "%d").format(
+         nSameTrioHap,
+         nDiffTrioHap,
+         nCoSegExAC,
+         nNonCoSegExac,
+         nCoSegExACandSameTrioHap,
+         nNonCoSegExACandDiffTrioHap,
+         nSameHapExAC,
+         nDiffHapExac,
+         nSameHapExACandSameHapTrio,
+         nDiffHapExACandDiffHapTrio
+        )
+      }
+
+    }
+
+    var res = mutable.Map[(Int, Int), VPCResult]()
 
     val variantPairs = (for(trio <- ped.completeTrios) yield{
       getHetPhasedVariantPairs(trio.kid,trio.dad,trio.mom) ::: getHetPhasedVariantPairs(trio.kid,trio.mom,trio.dad)
@@ -81,8 +172,8 @@ object SingletonLDinTrios extends Command {
 
     //Public functions
     override def toString() : String = {
-      res.map({case ((ac1,ac2),(sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC)) =>
-      ("%d\t" * 8).format(ac1,ac2,sameTrioHap,diffTrioHap,coInExAC,notCoInExAC,sameHapTrioExAC,diffHapTrioExAC)}).mkString("\r")
+      res.map({case ((ac1,ac2),result) =>
+      ("%d\t%d\t").format(ac1,ac2) + result.toString()}).mkString("\r")
     }
 
     def getHetSites() : Set[String] = {
@@ -101,35 +192,28 @@ object SingletonLDinTrios extends Command {
         //Only store results where sites could be trio-phased
         if (sameTrioHap.isDefined) {
           val k = (exac.getAC(v1), exac.getAC(v2))
-          //Check if could be found in ExAC
+          val v = new VPCResult(sameTrioHap.get)
+          //Check if could be found in ExAC and how it seggregates
           foundInSameSampleInExAC(exac,v1, v2) match {
             case Some(sameExacHap) =>
-              val v = (
-                if (sameTrioHap.get) 1 else 0,
-                if (sameTrioHap.get) 0 else 1,
-                if (sameExacHap) 1 else 0,
-                if (sameExacHap) 0 else 1,
-                if (sameExacHap == sameTrioHap.get && sameTrioHap.get) 1 else 0,
-                if (sameExacHap == sameTrioHap.get && !sameTrioHap.get) 1 else 0
-                )
-              addResult(k, v)
+              v.coSegExAC(sameExacHap,sameTrioHap.get)
             case None =>
-              val v = (
-                if (sameTrioHap.get) 1 else 0,
-                if (sameTrioHap.get) 0 else 1,
-                0, 0, 0, 0
-                )
-              addResult(k, v)
           }
+
+          //Compute whether on the same haplotype based on EM using ExAC
+          probOnSameHaplotypeWithEM(exac,v1,v2) match {
+            case Some(probSameHap) => v.sameHapExAC(probSameHap>0.5,sameTrioHap.get)
+            case None =>
+          }
+
+          //Add results
+          res.get(k) match{
+            case Some(pv) => res.update(k, pv.add(v))
+            case None => res.update(k,v)
+          }
+
         }
       })
-    }
-
-    private def addResult(k: (Int, Int), v: (Int, Int, Int, Int, Int, Int)) = {
-      res.get(k) match {
-        case Some(pv) => res.update(k, (pv._1 + v._1, pv._2 + v._2, pv._3 + v._3, pv._4 + v._4, pv._5 + v._5, pv._6 + v._6))
-        case None => res.update(k, v)
-      }
     }
 
     //Returns all pairs of variants for which the parent parentID is het at both sites, along with
@@ -200,55 +284,102 @@ object SingletonLDinTrios extends Command {
 
     }
 
-    private def phaseWithEM(exac: SparseVariantSampleMatrix, variantID1: String, variantID2: String) : Option[Boolean] = {
+    private def probOnSameHaplotypeWithEM(exac: SparseVariantSampleMatrix, variantID1: String, variantID2: String) : Option[Double] = {
+      phaseWithEM(exac,variantID1,variantID2) match{
+        case Some(haplotypes) =>
+          return Some(haplotypes(1) * haplotypes(2) / (haplotypes(1) * haplotypes(2) + haplotypes(0) * haplotypes(3)))
+        case None => None
+      }
 
-      //Count the number of AABB AaBB aaBB AABb AaBb aaBb AAbb Aabb aabb
-      val gtCounts = exac.sampleIDs.foldLeft(new Array[Int](9))({case (acc,s) =>
+    }
+
+    /**Returns a vector containing the estimated number of haplotypes
+      * (0) AB
+      * (1) Ab
+      * (2) aB
+      * (3) ab
+      */
+    private def phaseWithEM(exac: SparseVariantSampleMatrix, variantID1: String, variantID2: String) : Option[DenseVector[Double]] = {
+
+      /**Count the number of individuals with different genotype combinations
+        * (0) AABB
+        * (1) AaBB
+        * (2) aaBB
+        * (3) AABb
+        * (4) AaBb
+        * (5) aaBb
+        * (6) AAbb
+        * (7) Aabb
+        * (8) aabb
+        */
+      val gtCounts = new DenseVector(exac.sampleIDs.foldLeft(new Array[Int](9))({case (acc,s) =>
 
         (exac.getGenotype(variantID1,s) ,exac.getGenotype(variantID2,s)) match{
           case (Some(gt1),Some(gt2)) => {
             if(gt1.isHomRef){
+              if(gt2.isHomRef){acc(0)+=1}
+              else if(gt2.isHet){acc(3)+=1}
+              else if(gt2.isHomVar){acc(6)+=1}
+            }
+            else if(gt1.isHet){
               if(gt2.isHomRef){acc(1)+=1}
               else if(gt2.isHet){acc(4)+=1}
               else if(gt2.isHomVar){acc(7)+=1}
             }
-            else if(gt1.isHet){
+            else if(gt1.isHomVar){
               if(gt2.isHomRef){acc(2)+=1}
               else if(gt2.isHet){acc(5)+=1}
               else if(gt2.isHomVar){acc(8)+=1}
-            }
-            else if(gt1.isHomVar){
-              if(gt2.isHomRef){acc(3)+=1}
-              else if(gt2.isHet){acc(6)+=1}
-              else if(gt2.isHomVar){acc(9)+=1}
             }
           }
           case _ =>
         }
         acc
-      })
+      }))
 
       val nSamples = gtCounts.foldLeft(0)({case (acc,x) => acc+x})
 
-      var p_cur = Array[Double](
-        2*gtCounts(0) + gtCounts(1) + gtCounts(3)+ gtCounts(4)/2,  //n.AB
-        2*gtCounts(6) + gtCounts(3) + gtCounts(7) + gtCounts(4)/2, //n.Ab
-        2*gtCounts(2) + gtCounts(1) + gtCounts(5) + gtCounts(4)/2, //n.aB
-        2*gtCounts(8) + gtCounts(5) + gtCounts(7) + gtCounts(4)/2  //n.ab
-      ).map(x => x/(2*nSamples))
-      var p_next = p_cur
-      var discrepancy = 1.0
+      //Needs some non-ref samples to compute
+      if(gtCounts(0) >= nSamples){ return None}
 
-      while(discrepancy > 10e-7){
+      val nHaplotypes = 2.0*nSamples.toDouble
+
+      /**
+        * Constant quantities for each of the different haplotypes:
+        * n.AB => 2*n.AABB + n.AaBB + n.AABb
+        * n.Ab => 2*n.AAbb + n.Aabb + n.AABb
+        * n.aB => 2*n.aaBB + n.AaBB + n.aaBb
+        * n.ab => 2*n.aabb + n.aaBb + n.Aabb
+        */
+      val const_counts = new DenseVector(Array[Double](
+        2.0*gtCounts(0) + gtCounts(1) + gtCounts(3), //n.AB
+        2.0*gtCounts(6) + gtCounts(3) + gtCounts(7), //n.Ab
+        2.0*gtCounts(2) + gtCounts(1) + gtCounts(5), //n.aB
+        2.0*gtCounts(8) + gtCounts(5) + gtCounts(7)  //n.ab
+      ))
+
+      //Initial estimate with AaBb contributing equally to each haplotype
+      var p_next = (const_counts :+ new DenseVector(Array.fill[Double](4)(gtCounts(4)/2.0))) :/ nHaplotypes
+      var p_cur = p_next :+ 1.0
+
+      //EM
+      while(max(abs(p_next :- p_cur)) > 1e-7){
 
         p_cur = p_next
 
-        //E step
-
+        p_next = (const_counts :+
+          (new DenseVector(Array[Double](
+            p_cur(0)*p_cur(3), //n.AB
+            p_cur(1)*p_cur(2), //n.Ab
+            p_cur(1)*p_cur(2), //n.aB
+            p_cur(0)*p_cur(3)  //n.ab
+          )) :* gtCounts(4) / ((p_cur(0)*p_cur(3))+(p_cur(1)*p_cur(2))) )
+          ) :/ nHaplotypes
 
       }
 
-      None
+      return Some(p_next :* nHaplotypes)
+
     }
 
   }
