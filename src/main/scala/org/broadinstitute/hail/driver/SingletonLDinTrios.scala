@@ -11,6 +11,7 @@ import org.broadinstitute.hail.utils.SparseVariantSampleMatrix
 import org.broadinstitute.hail.variant.GenotypeType.{GenotypeType => _, _}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
 import scala.language.postfixOps
@@ -287,13 +288,14 @@ object SingletonLDinTrios extends Command {
       {case(v1,v2) => v1 ++ v2}
     )
 
-    val file = new File(options.output)
+    /**val file = new File(options.output)
     val bw = new BufferedWriter(new FileWriter(file))
     uniqueVariants.foreach({
       case(v) =>  bw.write(v+"\n")
     })
-    bw.close()
-    /**
+    bw.close()**/
+
+    info("Found " + uniqueVariants.size.toString + " variants in pairs in samples.")
 
     val bcUniqueVariants = state.sc.broadcast(uniqueVariants)
 
@@ -325,7 +327,7 @@ object SingletonLDinTrios extends Command {
       {case(gene,(trios,exac)) =>
         gene + "\t" + (new VariantPairsCounter(trios,exac,ped.value)).toString()
       })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
-**/
+
     state
   }
 }
