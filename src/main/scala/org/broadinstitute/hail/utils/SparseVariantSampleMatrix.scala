@@ -169,6 +169,10 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
         s_genotypes += genotype
         s_vindices += vindex
     })
+    //Add last samples even if no genotypes.
+    while(sindices.size < sampleIDs.size){
+      sindices += s_genotypes.size
+    }
 
   }
 
