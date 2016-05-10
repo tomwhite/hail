@@ -406,7 +406,7 @@ object SingletonLDinTrios extends Command {
 
     //List individuals from trios where all family members are present
     //TODO: Check that completeTrios actually lists all complete trios in the fam file.
-    val samplesInTrios = ped.value.completeTrios.foldLeft(List[String]())({case (acc,trio) => trio.mom::trio.dad::trio.kid::acc})
+    val samplesInTrios = ped.value.completeTrios.foldLeft(List[String]())({case (acc,trio) => trio.mom::trio.dad::trio.kid::acc}).toSet
     //Filter trios and keep only complete trios
     val trioVDS = state.vds.filterSamples((s: String, sa: Annotation) => Filter.keepThis(samplesInTrios.contains(s), true)).filterVariants(autosomeFilter)
 
@@ -441,9 +441,8 @@ object SingletonLDinTrios extends Command {
 
     //Only keep variants that are of interest and have a gene annotation (although they should match those of trios!)
     def variantsOfInterestFilter = {(v: Variant, va: Annotation) => exacGeneAnn(va).isDefined && bcUniqueVariants.value.contains(v.toString)}
-    exacVDS.filterVariants(variantsOfInterestFilter)
-
-    val exacRDD = exacVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
+    
+    val exacRDD = exacVDS.filterVariants(variantsOfInterestFilter).aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
       case(counter,v,va,s,sa,i,g) =>
         counter.addGenotype(v.toString(),i,g)},{
       case(c1,c2) => c1.merge(c2)},
