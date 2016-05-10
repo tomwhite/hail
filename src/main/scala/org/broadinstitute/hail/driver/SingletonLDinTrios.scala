@@ -194,7 +194,7 @@ object SingletonLDinTrios extends Command {
     private def computeExACphase(exac : SparseVariantSampleMatrix) = {
       info("Computing ExAC phase for "+variantPairs.size+" variant pairs...")
       variantPairs.foreach({ case (v1, v2, sameTrioHap) =>
-        info("Starting variant-pair:" + v1 +" | "+v2)
+        //info("Starting variant-pair:" + v1 +" | "+v2)
         //Only store results where sites could be trio-phased
         if (sameTrioHap.isDefined) {
           val k = (exac.getAC(v1), exac.getAC(v2))
@@ -441,7 +441,7 @@ object SingletonLDinTrios extends Command {
 
     //Only keep variants that are of interest and have a gene annotation (although they should match those of trios!)
     def variantsOfInterestFilter = {(v: Variant, va: Annotation) => exacGeneAnn(va).isDefined && bcUniqueVariants.value.contains(v.toString)}
-    
+
     val exacRDD = exacVDS.filterVariants(variantsOfInterestFilter).aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
       case(counter,v,va,s,sa,i,g) =>
         counter.addGenotype(v.toString(),i,g)},{
