@@ -415,8 +415,8 @@ object SingletonLDinTrios extends Command {
         counter.addGenotype(v.toString(),i,g)},{
       case(c1,c2) => c1.merge(c2)},
       {case (v,va) => triosGeneAnn(va).getOrElse("None").toString}
-    ).map({
-      case(gene,svm) => (gene, new VariantPairsCounter(svm,ped.value))
+    ).mapValues({
+      case svm => new VariantPairsCounter(svm,ped.value)
     })
 
     triosRDD.persist(StorageLevel.MEMORY_AND_DISK)
