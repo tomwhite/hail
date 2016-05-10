@@ -419,10 +419,8 @@ object SingletonLDinTrios extends Command {
       {case (v,va) => triosGeneAnn(va).getOrElse("None").toString}
     ).mapValues({
       case svm => new VariantPairsCounter(svm,ped.value)
-    })
-
-    triosRDD.persist(StorageLevel.MEMORY_AND_DISK)
-
+    }).persist(StorageLevel.MEMORY_AND_DISK)
+    
     //Get unique variants that are found in pairs in our samples
     //TODO: Can this be replaced by a fold?
     val uniqueVariants = triosRDD.map({
