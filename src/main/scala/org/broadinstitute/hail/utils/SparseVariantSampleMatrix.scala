@@ -97,8 +97,8 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
    val nextVariantIndex = if(vindices.size > variantIndex+1) vindices(variantIndex+1) else v_sindices.size
 
    Some(
-     (for(gindex <- v_sindices.slice(vindices(variantIndex),nextVariantIndex)) yield{
-      (sampleIDs(gindex), Genotype(v_genotypes(gindex)))
+     (for(i <- Range(vindices(variantIndex),nextVariantIndex)) yield{
+       (sampleIDs(v_sindices(i)), Genotype(v_genotypes(i)))
      }).toMap
    )
 
@@ -119,8 +119,8 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
    //info("variants: "+variants.size+", v_sindices: "+v_sindices.size + ", vindices: "+ vindices.size + ", v_genotypes: " + v_genotypes.size + ", samples:" +nSamples + "s_vindices: "+s_vindices.size + ", sindices" + sindices.size + ", s_genotypes: "+s_genotypes.size +", sampleIndex: "+sampleIndex+", nextSampleInde: "+nextSampleIndex)
 
    Some(
-     (for(gindex <- s_vindices.slice(sindices(sampleIndex),nextSampleIndex)) yield{
-       (variants(gindex),Genotype(s_genotypes(gindex)))
+     (for(i <- Range(sindices(sampleIndex),nextSampleIndex)) yield{
+       (variants(s_vindices(i)), Genotype(s_genotypes(i)))
      }).toMap
    )
 
