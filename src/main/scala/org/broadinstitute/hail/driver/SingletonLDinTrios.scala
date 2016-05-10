@@ -192,7 +192,9 @@ object SingletonLDinTrios extends Command {
 
     //Private functions
     private def computeExACphase(exac : SparseVariantSampleMatrix) = {
+      info("Computing ExAC phase for "+variantPairs.size+" variant pairs...")
       variantPairs.foreach({ case (v1, v2, sameTrioHap) =>
+        info("Starting variant-pair:" + v1 +" | "+v2)
         //Only store results where sites could be trio-phased
         if (sameTrioHap.isDefined) {
           val k = (exac.getAC(v1), exac.getAC(v2))
