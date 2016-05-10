@@ -395,20 +395,20 @@ object SingletonLDinTrios extends Command {
     //Read PED file
     val ped = state.sc.broadcast(Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds))
 
+    //Get annotations
+    val triosGeneAnn = state.vds.queryVA(options.gene_annotation)._2
+
     //List of contigs to consider
     val autosomes = Range(1,23).map({c: Int => c.toString})
-    def autosomeFilter = {(v: Variant, va: Annotation) => autosomes.contains(v.contig)}
+
+    //Filter variants that are on autosomes and have a gene annotation
+    def autosomeFilter = {(v: Variant, va: Annotation) => autosomes.contains(v.contig) && triosGeneAnn(va).isDefined}
 
     //List individuals from trios where all family members are present
     //TODO: Check that completeTrios actually lists all complete trios in the fam file.
     val samplesInTrios = ped.value.completeTrios.foldLeft(List[String]())({case (acc,trio) => trio.mom::trio.dad::trio.kid::acc})
     //Filter trios and keep only complete trios
     val trioVDS = state.vds.filterSamples((s: String, sa: Annotation) => Filter.keepThis(samplesInTrios.contains(s), true)).filterVariants(autosomeFilter)
-
-
-    //Get annotations
-    val triosGeneAnn = trioVDS.queryVA(options.gene_annotation)._2
-    //val triosConsAnn = trioVDS.queryVA(options.consequence_annotation)._2
 
     val partitioner = new HashPartitioner(options.number_partitions)
 
@@ -420,7 +420,7 @@ object SingletonLDinTrios extends Command {
     ).mapValues({
       case svm => new VariantPairsCounter(svm,ped.value)
     }).persist(StorageLevel.MEMORY_AND_DISK)
-    
+
     //Get unique variants that are found in pairs in our samples
     //TODO: Can this be replaced by a fold?
     val uniqueVariants = triosRDD.map({
@@ -429,27 +429,19 @@ object SingletonLDinTrios extends Command {
       {case(v1,v2) => v1 ++ v2}
     )
 
-    /**val file = new File(options.output)
-    val bw = new BufferedWriter(new FileWriter(file))
-    uniqueVariants.foreach({
-      case(v) =>  bw.write(v+"\n")
-    })
-    bw.close()**/
-
     info("Found " + uniqueVariants.size.toString + " variants in pairs in samples.")
 
     val bcUniqueVariants = state.sc.broadcast(uniqueVariants)
 
-    def variantsOfInterestFilter = {(v: Variant, va: Annotation) => bcUniqueVariants.value.contains(v.toString)}
-
     //Load ExAC VDS, filter common samples and sites based on exac condition (AC)
-    //val exacVDS = FilterVariants.run(State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)),Array("-c",options.cexac,"--keep")).vds.
-    //  filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false)).filterVariants(autosomeFilter)
-
     val exacVDS = State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)).vds.
-      filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false)).filterVariants(variantsOfInterestFilter)
+      filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false))
 
     val exacGeneAnn = exacVDS.queryVA(options.gene_annotation)._2
+
+    //Only keep variants that are of interest and have a gene annotation (although they should match those of trios!)
+    def variantsOfInterestFilter = {(v: Variant, va: Annotation) => exacGeneAnn(va).isDefined && bcUniqueVariants.value.contains(v.toString)}
+    exacVDS.filterVariants(variantsOfInterestFilter)
 
     val exacRDD = exacVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
       case(counter,v,va,s,sa,i,g) =>
