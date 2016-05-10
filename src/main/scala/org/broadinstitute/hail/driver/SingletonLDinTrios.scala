@@ -5,6 +5,7 @@ import java.io.{BufferedWriter, File, FileWriter}
 import breeze.linalg.{DenseVector, SparseVector, max, sum}
 import breeze.numerics.abs
 import org.apache.spark.HashPartitioner
+import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.{Logging, RichRDD}
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.methods.{Filter, Pedigree}
@@ -185,6 +186,9 @@ object SingletonLDinTrios extends Command {
       computeExACphase(exac)
     }
 
+    def addExac(exac: SparseVariantSampleMatrix) = {
+      computeExACphase(exac)
+    }
 
     //Private functions
     private def computeExACphase(exac : SparseVariantSampleMatrix) = {
@@ -411,11 +415,17 @@ object SingletonLDinTrios extends Command {
         counter.addGenotype(v.toString(),i,g)},{
       case(c1,c2) => c1.merge(c2)},
       {case (v,va) => triosGeneAnn(va).getOrElse("None").toString}
-    )
+    ).map({
+      case(gene,svm) => (gene, new VariantPairsCounter(svm,ped.value))
+    })
+
+    triosRDD.persist(StorageLevel.MEMORY_AND_DISK)
 
     //Get unique variants that are found in pairs in our samples
+    //TODO: Can this be replaced by a fold?
     val uniqueVariants = triosRDD.map({
-      case(gene,svm) => new VariantPairsCounter(svm,ped.value).getHetSites()}).reduce(
+      case(gene,svm) => svm.getHetSites()
+      }).reduce(
       {case(v1,v2) => v1 ++ v2}
     )
 
@@ -456,7 +466,8 @@ object SingletonLDinTrios extends Command {
     //write results
     new RichRDD(callsByGene.map(
       {case(gene,(trios,exac)) =>
-        gene + "\t" + (new VariantPairsCounter(trios,exac,ped.value)).toString()
+        trios.addExac(exac)
+        gene + "\t" + (trios.toString())
       })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
 
     state
