@@ -177,6 +177,11 @@ object SingletonLDinTrios extends Command {
       ("%d\t%d\t").format(ac1,ac2) + result.toString()}).mkString("\r")
     }
 
+    def toString(group_name : String) : String = {
+      res.map({case ((ac1,ac2),result) =>
+        ("%s\t%d\t%d\t").format(group_name,ac1,ac2) + result.toString()}).mkString("\r")
+    }
+
     def getHetSites() : Set[String] = {
       variantPairs.flatMap({case (v1,v2,phase) => List(v1,v2)}).toSet
     }
@@ -194,12 +199,13 @@ object SingletonLDinTrios extends Command {
     private def computeExACphase(exac : SparseVariantSampleMatrix) = {
       info("Computing ExAC phase for "+variantPairs.size+" variant pairs...")
       variantPairs.foreach({ case (v1, v2, sameTrioHap) =>
-        //info("Starting variant-pair:" + v1 +" | "+v2)
+
         //Only store results where sites could be trio-phased
         if (sameTrioHap.isDefined) {
           val k = (exac.getAC(v1), exac.getAC(v2))
           val v = new VPCResult(sameTrioHap.get)
           //Check if could be found in ExAC and how it seggregates
+          info("Computing ExAC segregation for variant-pair:" + v1 +" | "+v2)
           foundInSameSampleInExAC(exac,v1, v2) match {
             case Some(sameExacHap) =>
               v.coSegExAC(sameExacHap,sameTrioHap.get)
@@ -207,6 +213,7 @@ object SingletonLDinTrios extends Command {
           }
 
           //Compute whether on the same haplotype based on EM using ExAC
+          info("Computing ExAC phase for variant-pair:" + v1 +" | "+v2)
           probOnSameHaplotypeWithEM(exac,v1,v2) match {
             case Some(probSameHap) => v.sameHapExAC(probSameHap>0.5,sameTrioHap.get)
             case None =>
@@ -406,8 +413,8 @@ object SingletonLDinTrios extends Command {
     def autosomeFilter = {(v: Variant, va: Annotation) => autosomes.contains(v.contig) && triosGeneAnn(va).isDefined}
 
     //List individuals from trios where all family members are present
-    //TODO: Check that completeTrios actually lists all complete trios in the fam file.
-    val samplesInTrios = ped.value.completeTrios.foldLeft(List[String]())({case (acc,trio) => trio.mom::trio.dad::trio.kid::acc}).toSet
+    //In case of multiple offspring, keep only one
+    val samplesInTrios = ped.value.completeTrios.foldLeft(List[String]())({case (acc,trio) => if(acc.contains(trio.mom)) acc else trio.mom::trio.dad::trio.kid::acc}).toSet
     //Filter trios and keep only complete trios
     val trioVDS = state.vds.filterSamples((s: String, sa: Annotation) => Filter.keepThis(samplesInTrios.contains(s), true)).filterVariants(autosomeFilter)
 
@@ -459,7 +466,7 @@ object SingletonLDinTrios extends Command {
     new RichRDD(callsByGene.map(
       {case(gene,(trios,exac)) =>
         trios.addExac(exac)
-        gene + "\t" + (trios.toString())
+        trios.toString(gene)
       })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
 
     state
