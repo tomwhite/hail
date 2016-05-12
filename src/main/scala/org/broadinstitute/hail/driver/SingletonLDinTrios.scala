@@ -228,6 +228,7 @@ object SingletonLDinTrios extends Command {
       (trios.getSample(parentID) match {
         case Some(genotypes) => {
           for((variant1, gt1) <- genotypes; (variant2,gt2) <- genotypes; if(gt1.isHet && gt2.isHet && variant1 < variant2)) yield{
+            info("Found variant pair: " + variant1 + "/" + variant2 + " in parent " + parentID)
             (variant1, variant2, isOnSameParentalHaplotype(variant1,variant2,kidID,otherParentID))
           }
         }.toList
