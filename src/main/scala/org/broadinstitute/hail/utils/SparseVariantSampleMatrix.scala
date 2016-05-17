@@ -40,6 +40,22 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
   private val s_genotypes = ArrayBuffer[Byte]()
   private val sindices = ArrayBuffer[Int]()
 
+  def nGenotypes() : Int = {
+    v_genotypes.size
+  }
+
+  def addVariant(variant: String, genotypes: Iterable[Genotype]) : SparseVariantSampleMatrix = {
+
+    var sindex = 0
+    genotypes.foreach( gt => {
+        addGenotype(variant,sindex,gt)
+        sindex += 1
+      }
+    )
+    this
+  }
+
+
   def addGenotype(variant: String, index: Int, genotype: Genotype) : SparseVariantSampleMatrix ={
 
     //Only record non-0 genotypes
@@ -85,7 +101,7 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
     this.v_genotypes ++= that.v_genotypes
     this
   }
-
+//TODO remove option => return empty Map
  def getVariant(variantID: String): Option[Map[String,Genotype]] = {
 
    val variantIndex = variants.indexOf(variantID)
