@@ -179,7 +179,7 @@ object SingletonLDinTrios extends Command {
 
     def toString(group_name : String) : String = {
       res.map({case ((ac1,ac2),result) =>
-        ("%s\t%d\t%d\t").format(group_name,ac1,ac2) + result.toString()}).mkString("\r")
+        ("%s\t%d\t%d\t").format(group_name,ac1,ac2) + result.toString()}).mkString("\n")
     }
 
     def getHetSites() : Set[String] = {
@@ -407,15 +407,16 @@ object SingletonLDinTrios extends Command {
     val triosGeneAnn = state.vds.queryVA(options.gene_annotation)._2
 
     //List of contigs to consider
-    val autosomes = Range(1,23).map({c: Int => c.toString})
+    val autosomes = Range(1,23).map({c: Int => c.toString}).toSet
 
     //Filter variants that are on autosomes and have a gene annotation
     def autosomeFilter = {(v: Variant, va: Annotation) => autosomes.contains(v.contig) && triosGeneAnn(va).isDefined}
 
     //List individuals from trios where all family members are present
     //In case of multiple offspring, keep only one
-    val samplesInTrios = ped.value.completeTrios.foldLeft(List[String]())({case (acc,trio) => if(acc.contains(trio.mom)) acc else trio.mom::trio.dad::trio.kid::acc}).toSet
+    val samplesInTrios = ped.value.completeTrios.foldLeft(Set[String]())({case (acc,trio) => if(acc.contains(trio.mom)) acc else trio.mom::trio.dad::trio.kid::acc}).toSet //Create Set directly
     //Filter trios and keep only complete trios
+    //TODO Filter variants before samples
     val trioVDS = state.vds.filterSamples((s: String, sa: Annotation) => Filter.keepThis(samplesInTrios.contains(s), true)).filterVariants(autosomeFilter)
 
     val partitioner = new HashPartitioner(options.number_partitions)
@@ -443,7 +444,7 @@ object SingletonLDinTrios extends Command {
 
     //Load ExAC VDS, filter common samples and sites based on exac condition (AC)
     val exacVDS = State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)).vds.
-      filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false))
+      filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false)) //TODO: Remove keepThis --> filterSamples
 
     val exacGeneAnn = exacVDS.queryVA(options.gene_annotation)._2
 
@@ -455,10 +456,19 @@ object SingletonLDinTrios extends Command {
         counter.addGenotype(v.toString(),i,g)},{
       case(c1,c2) => c1.merge(c2)},
       {case (v,va) => exacGeneAnn(va).getOrElse("None").toString}
-    )
+    ).persist(StorageLevel.MEMORY_AND_DISK)
 
+    info(exacRDD.map({
+      case(gene,vs) => ("Gene: %s\tnVariants: %d\tnSamples: %\tnGenotypes: %d").format(gene,vs.variants.size, vs.nSamples, vs.nGenotypes())
+    }).collect().mkString("\n"))
 
-    val callsByGene = triosRDD.join(exacRDD)
+  // TODO: Print out partitioner
+    val callsByGene = triosRDD.join(exacRDD,partitioner).persist(StorageLevel.MEMORY_AND_DISK)
+
+    info(callsByGene.map({
+      case(gene,(trios,exac)) => ("Gene: %s\tnVariantPairs: %d").format(gene,trios.variantPairs.size)
+    }).collect().mkString("\n"))
+
 
     //val x = new SparseVector()
 
