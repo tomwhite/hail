@@ -414,7 +414,7 @@ object SingletonLDinTrios extends Command {
 
     //List individuals from trios where all family members are present
     //In case of multiple offspring, keep only one
-    val samplesInTrios = ped.value.completeTrios.foldLeft(Set[String]())({case (acc,trio) => if(acc.contains(trio.mom)) acc else trio.mom::trio.dad::trio.kid::acc}).toSet //Create Set directly
+    val samplesInTrios = ped.value.completeTrios.foldLeft(Set[String]())({case (acc,trio) => acc ++ Set(trio.mom,trio.dad,trio.kid)}) //Create Set directly
     //Filter trios and keep only complete trios
     //TODO Filter variants before samples
     val trioVDS = state.vds.filterSamples((s: String, sa: Annotation) => Filter.keepThis(samplesInTrios.contains(s), true)).filterVariants(autosomeFilter)
