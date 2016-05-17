@@ -459,7 +459,7 @@ object SingletonLDinTrios extends Command {
     ).persist(StorageLevel.MEMORY_AND_DISK)
 
     info(exacRDD.map({
-      case(gene,vs) => ("Gene: %s\tnVariants: %d\tnSamples: %\tnGenotypes: %d").format(gene,vs.variants.size, vs.nSamples, vs.nGenotypes())
+      case(gene,vs) => ("Gene: %s\tnVariants: %d\tnSamples: %d\tnGenotypes: %d").format(gene,vs.variants.size, vs.nSamples, vs.nGenotypes())
     }).collect().mkString("\n"))
 
   // TODO: Print out partitioner
