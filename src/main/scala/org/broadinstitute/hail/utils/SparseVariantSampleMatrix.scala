@@ -11,7 +11,7 @@ import org.broadinstitute.hail.variant.GenotypeType._
 
 import scala.collection.immutable.VectorBuilder
 import scala.collection.mutable
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.collection.mutable.{ArrayBuffer, ListBuffer, Map}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
 
@@ -25,7 +25,10 @@ import org.broadinstitute.hail.Utils._
 class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Serializable {
 
   val nSamples = sampleIDs.length
+  val samplesIndex = sampleIDs.zipWithIndex.toMap
+
   val variants = ArrayBuffer[String]()
+  val variantsIndex = mutable.Map[String,Int]()
 
   //Stores the variants -> sample mappings
   //Populated when adding variants
@@ -80,6 +83,7 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
           //Otherwise append
           else {
             vindices += v_genotypes.size
+            variantsIndex.update(variant,variants.size)
             variants += variant
             v_sindices += index
             v_genotypes += genotype.gt.getOrElse(-1).toByte
@@ -96,51 +100,83 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
 
   def merge(that: SparseVariantSampleMatrix): SparseVariantSampleMatrix = {
     this.vindices ++= that.vindices.map({x => x + this.v_sindices.size})
+    that.variantsIndex.foreach({
+      case (k,v) => variantsIndex.update(k,v+variants.size)
+    })
     this.variants ++= that.variants
-    this.v_sindices ++= that.v_sindices //.map({ x => x + (this.variants.size * nSamples)})
+    this.v_sindices ++= that.v_sindices
     this.v_genotypes ++= that.v_genotypes
     this
   }
-//TODO remove option => return empty Map
- def getVariant(variantID: String): Option[Map[String,Genotype]] = {
 
-   val variantIndex = variants.indexOf(variantID)
+  //Returns None in case the variant is not present
+  def getVariantAsOption(variantID: String) : Option[Map[String,Genotype]] = {
+    variantsIndex.get(variantID) match{
+      case Some(vindex) => Some(getVariant(vindex))
+      case None => None
+    }
+  }
 
-   if(variantIndex < 0){
-     return None
-   }
-
-   val nextVariantIndex = if(vindices.size > variantIndex+1) vindices(variantIndex+1) else v_sindices.size
-
-   Some(
-     (for(i <- Range(vindices(variantIndex),nextVariantIndex)) yield{
-       (sampleIDs(v_sindices(i)), Genotype(v_genotypes(i)))
-     }).toMap
-   )
-
-   }
-
- def getSample(sampleID: String): Option[Map[String,Genotype]] = {
-
-  if(variants.isEmpty){return None}
-
-  val sampleIndex = sampleIDs.indexOf(sampleID)
-
-  if(sampleIndex < 0) { return None }
-
-  if(sindices.isEmpty){ buildSampleView() }
-
-   val nextSampleIndex = if(sindices.size > sampleIndex+1) sindices(sampleIndex+1) else s_vindices.size
-
-   //info("variants: "+variants.size+", v_sindices: "+v_sindices.size + ", vindices: "+ vindices.size + ", v_genotypes: " + v_genotypes.size + ", samples:" +nSamples + "s_vindices: "+s_vindices.size + ", sindices" + sindices.size + ", s_genotypes: "+s_genotypes.size +", sampleIndex: "+sampleIndex+", nextSampleInde: "+nextSampleIndex)
-
-   Some(
-     (for(i <- Range(sindices(sampleIndex),nextSampleIndex)) yield{
-       (variants(s_vindices(i)), Genotype(s_genotypes(i)))
-     }).toMap
-   )
-
+  //Return an empty map in case the variant is not present
+ def getVariant(variantID: String): Map[String,Genotype] = {
+   getVariant(variantsIndex.getOrElse(variantID, -1))
  }
+
+  def getVariant(variantIndex: Int): Map[String,Genotype] = {
+
+    val variant = mutable.Map[String,Genotype]()
+
+    if(variantIndex > -1) {
+
+      val nextVariantIndex = if (vindices.size > variantIndex + 1) vindices(variantIndex + 1) else v_sindices.size
+
+      Range(vindices(variantIndex), nextVariantIndex).foreach({
+        case i => variant.update(sampleIDs(v_sindices(i)), Genotype(v_genotypes(i)))
+      })
+    }
+
+    return variant
+
+  }
+
+  //Returns None if the sample is absent,
+  // a Map of Variants -> Genotypes for that sample otherwise
+  def getSampleAsOption(sampleID: String) : Option[Map[String,Genotype]] = {
+
+    val sampleIndex = samplesIndex.getOrElse(sampleID,-1)
+
+    if(sampleIndex < 0) { return None }
+
+    Some(getSample(sampleIndex))
+
+  }
+
+  //Returns a Map of Variants -> Genotype for that sample
+  //In case of an absent sample, returns an empty map
+  def getSample(sampleID: String): Map[String,Genotype] = {
+    getSample(samplesIndex.getOrElse(sampleID,-1))
+ }
+
+  //Returns a Map of Variants -> Genotype for that sample
+  //In case of an absent sample, returns an empty map
+  def getSample(sampleIndex: Int): Map[String,Genotype] = {
+
+    val sample = mutable.Map[String,Genotype]()
+
+    if(variants.isEmpty){return sample}
+
+    if(sampleIndex < 0) { return sample }
+
+    if(sindices.isEmpty){ buildSampleView() }
+
+    val nextSampleIndex = if(sindices.size > sampleIndex+1) sindices(sampleIndex+1) else s_vindices.size
+
+    Range(sindices(sampleIndex),nextSampleIndex).foreach({
+      case i => sample.update(variants(s_vindices(i)), Genotype(s_genotypes(i)))
+    })
+
+    return sample
+  }
 
   private def buildSampleView() = {
 
@@ -194,17 +230,24 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
 
  def getGenotype(variantID: String, sampleID:String) : Option[Genotype] = {
 
-   val sampleIndex = sampleIDs.indexOf(sampleID)
+   val sampleIndex = samplesIndex.getOrElse(sampleID,-1)
    if(sampleIndex < 0){ return None}
 
-   val variantIndex = variants.indexOf(variantID)
+   val variantIndex = variantsIndex.getOrElse(variantID,-1)
    if(variantIndex < 0){ return None}
 
    val nextVariantIndex = if(vindices.size > variantIndex+1) vindices(variantIndex+1) else v_sindices.size
 
-   Range(vindices(variantIndex),nextVariantIndex).foreach({
+   var i = vindices(variantIndex)
+
+   while(i < nextVariantIndex){
+     if(v_sindices(i) == sampleIndex){ return Some(Genotype(v_genotypes(i))) }
+     i +=1
+   }
+
+   /**Range(vindices(variantIndex),nextVariantIndex).foreach({
      case (i) => if(v_sindices(i) == sampleIndex){ return Some(Genotype(v_genotypes(i))) }
-   })
+   })**/
 
    return Some(Genotype(0)) //TODO would be best not to hardcode
 
@@ -212,7 +255,7 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
 
  def getAC(variantID: String) : Int ={
 
-   val variantIndex = variants.indexOf(variantID)
+   val variantIndex = variantsIndex.getOrElse(variantID,-1)
    if(variantIndex < 0){ return 0}
 
    val nextVariantIndex = if(vindices.size > variantIndex+1) vindices(variantIndex+1) else v_genotypes.size
