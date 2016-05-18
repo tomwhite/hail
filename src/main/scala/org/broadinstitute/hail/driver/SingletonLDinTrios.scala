@@ -234,7 +234,7 @@ object SingletonLDinTrios extends Command {
     private def getHetPhasedVariantPairs(kidID: String, parentID: String, otherParentID: String) : Set[(String,String,Option[Boolean])] = {
       val genotypes = trios.getSample(parentID)
 
-      (for((variant1, gt1) <- genotypes; (variant2,gt2) <- genotypes; if(gt1.isHet && gt2.isHet && variant1 < variant2)) yield{
+      (for((variant1, gt1) <- genotypes if gt1.isHet; (variant2,gt2) <- genotypes if gt2.isHet && variant1 < variant2) yield{
         //info("Found variant pair: " + variant1 + "/" + variant2 + " in parent " + parentID)
             (variant1, variant2, isOnSameParentalHaplotype(variant1,variant2,kidID,otherParentID))
       }).toSet
