@@ -166,7 +166,7 @@ object SingletonLDinTrios extends Command {
     var res = mutable.Map[(Int, Int), VPCResult]()
 
     val variantPairs = (for(trio <- ped.completeTrios) yield{
-      getHetPhasedVariantPairs(trio.kid,trio.dad,trio.mom) ::: getHetPhasedVariantPairs(trio.kid,trio.mom,trio.dad)
+      getHetPhasedVariantPairs(trio.kid,trio.dad,trio.mom) ++ getHetPhasedVariantPairs(trio.kid,trio.mom,trio.dad)
     }).flatten
 
 
@@ -231,16 +231,14 @@ object SingletonLDinTrios extends Command {
 
     //Returns all pairs of variants for which the parent parentID is het at both sites, along with
     //whether each of the variant pairs are on the same haplotype or not based on the transmission of alleles in the trio (or None if ambiguous / missing data)
-    private def getHetPhasedVariantPairs(kidID: String, parentID: String, otherParentID: String) : List[(String,String,Option[Boolean])] = {
-      (trios.getSample(parentID) match {
-        case Some(genotypes) => {
-          for((variant1, gt1) <- genotypes; (variant2,gt2) <- genotypes; if(gt1.isHet && gt2.isHet && variant1 < variant2)) yield{
-            info("Found variant pair: " + variant1 + "/" + variant2 + " in parent " + parentID)
+    private def getHetPhasedVariantPairs(kidID: String, parentID: String, otherParentID: String) : Set[(String,String,Option[Boolean])] = {
+      val genotypes = trios.getSample(parentID)
+
+      (for((variant1, gt1) <- genotypes; (variant2,gt2) <- genotypes; if(gt1.isHet && gt2.isHet && variant1 < variant2)) yield{
+        //info("Found variant pair: " + variant1 + "/" + variant2 + " in parent " + parentID)
             (variant1, variant2, isOnSameParentalHaplotype(variant1,variant2,kidID,otherParentID))
-          }
-        }.toList
-        case None => List.empty
-      })
+      }).toSet
+
     }
 
     //Given a site that is Het in parent1,
@@ -286,7 +284,7 @@ object SingletonLDinTrios extends Command {
     //both variants to the minSamples.
     private def foundInSameSampleInExAC(exac: SparseVariantSampleMatrix, variantID1: String, variantID2: String, minSamples: Int = 1): Option[Boolean] = {
 
-      (exac.getVariant(variantID1), exac.getVariant(variantID2)) match {
+      (exac.getVariantAsOption(variantID1), exac.getVariantAsOption(variantID2)) match {
         case (Some(v1), Some(v2)) => Some((v1.filter({
           case (k, v) => v.isHet || v.isHomVar
         }).keySet.intersect(
@@ -372,13 +370,17 @@ object SingletonLDinTrios extends Command {
         2.0*gtCounts(8) + gtCounts(5) + gtCounts(7)  //n.ab
       ))
 
+      info("EM initialization done.")
+
       //Initial estimate with AaBb contributing equally to each haplotype
       var p_next = (const_counts :+ new DenseVector(Array.fill[Double](4)(gtCounts(4)/2.0))) :/ nHaplotypes
       var p_cur = p_next :+ 1.0
 
+      var i = 0
+
       //EM
       while(max(abs(p_next :- p_cur)) > 1e-7){
-
+        i += 1
         p_cur = p_next
 
         p_next = (const_counts :+
@@ -391,7 +393,7 @@ object SingletonLDinTrios extends Command {
           ) :/ nHaplotypes
 
       }
-
+      info("EM converged after " + i.toString + " iterations.")
       return Some(p_next :* nHaplotypes)
 
     }
@@ -414,10 +416,11 @@ object SingletonLDinTrios extends Command {
 
     //List individuals from trios where all family members are present
     //In case of multiple offspring, keep only one
-    val samplesInTrios = ped.value.completeTrios.foldLeft(Set[String]())({case (acc,trio) => acc ++ Set(trio.mom,trio.dad,trio.kid)}) //Create Set directly
-    //Filter trios and keep only complete trios
-    //TODO Filter variants before samples
-    val trioVDS = state.vds.filterSamples((s: String, sa: Annotation) => Filter.keepThis(samplesInTrios.contains(s), true)).filterVariants(autosomeFilter)
+    val samplesInTrios = ped.value.completeTrios.foldLeft(Set[String]())({case (acc,trio) => acc ++ Set(trio.mom,trio.dad,trio.kid)})
+
+    //Filter variants to keep autosomes only and samples to keep only complete trios
+    info("nSamples before filtering: " + state.vds.sampleIds.size.toString)
+    val trioVDS = state.vds.filterVariants(autosomeFilter).filterSamples((s: String, sa: Annotation) => samplesInTrios.contains(s))
 
     val partitioner = new HashPartitioner(options.number_partitions)
 
@@ -438,25 +441,31 @@ object SingletonLDinTrios extends Command {
       {case(v1,v2) => v1 ++ v2}
     )
 
+
+    info(triosRDD.map({
+      case(gene,vs) => ("Gene: %s\tnVariantPairs: %d\tnSamples: %d").format(gene,vs.variantPairs.size,vs.trios.nSamples)
+    }).collect().mkString("\n"))
+
     info("Found " + uniqueVariants.size.toString + " variants in pairs in samples.")
 
     val bcUniqueVariants = state.sc.broadcast(uniqueVariants)
 
     //Load ExAC VDS, filter common samples and sites based on exac condition (AC)
-    val exacVDS = State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)).vds.
-      filterSamples((s: String, sa: Annotation) => Filter.keepThis(trioVDS.sampleIds.contains(s), false)) //TODO: Remove keepThis --> filterSamples
+    val exacVDS = State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)).vds
 
     val exacGeneAnn = exacVDS.queryVA(options.gene_annotation)._2
 
     //Only keep variants that are of interest and have a gene annotation (although they should match those of trios!)
     def variantsOfInterestFilter = {(v: Variant, va: Annotation) => exacGeneAnn(va).isDefined && bcUniqueVariants.value.contains(v.toString)}
 
-    val exacRDD = exacVDS.filterVariants(variantsOfInterestFilter).aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
-      case(counter,v,va,s,sa,i,g) =>
-        counter.addGenotype(v.toString(),i,g)},{
-      case(c1,c2) => c1.merge(c2)},
-      {case (v,va) => exacGeneAnn(va).getOrElse("None").toString}
-    ).persist(StorageLevel.MEMORY_AND_DISK)
+    val exacRDD = exacVDS.filterVariants(variantsOfInterestFilter).
+      filterSamples((s: String, sa: Annotation) => !trioVDS.sampleIds.contains(s)).
+        aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
+          case(counter,v,va,s,sa,i,g) =>
+            counter.addGenotype(v.toString(),i,g)},{
+          case(c1,c2) => c1.merge(c2)},
+          {case (v,va) => exacGeneAnn(va).getOrElse("None").toString}
+        ).persist(StorageLevel.MEMORY_AND_DISK)
 
     info(exacRDD.map({
       case(gene,vs) => ("Gene: %s\tnVariants: %d\tnSamples: %d\tnGenotypes: %d").format(gene,vs.variants.size, vs.nSamples, vs.nGenotypes())
