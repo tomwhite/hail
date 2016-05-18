@@ -11,7 +11,7 @@ import org.broadinstitute.hail.variant.GenotypeType._
 
 import scala.collection.immutable.VectorBuilder
 import scala.collection.mutable
-import scala.collection.mutable.{ArrayBuffer, ListBuffer, Map}
+import scala.collection.mutable.{ArrayBuffer, ArrayBuilder, ListBuffer, Map}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
 
@@ -20,7 +20,31 @@ import org.broadinstitute.hail.Utils._
   * Created by laurent on 4/19/16.
   */
 
+object SparseVariantSampleMatrixRRDBuilder {
 
+  //Given a mapping from a variant and its annotations to use as the key to the resulting PairRDD,
+  //Aggregates the data in a SparseSampleVariantMatrix
+  def buildByAnnotation[K](vsm: VariantSampleMatrix[Genotype], partitioner : Partitioner)(
+    mapOp: (Variant, Annotation)  => K)(implicit uct: ClassTag[K]): RDD[(K, SparseVariantSampleMatrix)] = {
+
+    vsm.rdd
+      .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[Genotype])]) =>
+        val gtBuilder = new mutable.ArrayBuilder.ofByte()
+        val siBuilder = new ArrayBuilder.ofInt()
+        it.map { case (v, va, gs) =>
+          gtBuilder.clear()
+          siBuilder.clear()
+          val sg = gs.iterator.zipWithIndex.foldLeft((siBuilder,gtBuilder))({
+            case (acc,(g,i)) => if(!g.isHomRef) (acc._1 += i,  acc._2 += g.gt.getOrElse(-1).toByte) else acc
+          })
+          (mapOp(v,va), (v.toString,siBuilder.result(),gtBuilder.result()))
+        }
+      }.aggregateByKey(new SparseVariantSampleMatrix(vsm.sampleIds), partitioner) (
+      { case (svsm, (v,sampleIndices,genotypes)) => svsm.addVariant(v,sampleIndices,genotypes) },
+      { (svsm1,svsm2) => svsm1.merge(svsm2) })
+  }
+
+}
 
 class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Serializable {
 
@@ -55,6 +79,17 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
         sindex += 1
       }
     )
+    this
+  }
+
+  def addVariant(variant: String, samples: Array[Int], genotypes: Array[Byte]) : SparseVariantSampleMatrix = {
+
+    vindices += v_genotypes.size
+    variantsIndex.update(variant,variants.size)
+    variants += variant
+    v_sindices ++= samples
+    v_genotypes ++= genotypes
+
     this
   }
 
@@ -189,7 +224,7 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
 
       def add(v_gindex: Int, index: Int, genotype: Byte): SampleMapBuilder = {
         //Update variant if moved to the next variant
-        if (index >= nextVariantIndex) {
+        while (index >= nextVariantIndex) {
           currVariant += 1
           nextVariantIndex = if (vindices.size > currVariant+1) vindices(currVariant+1) else Int.MaxValue
         }
