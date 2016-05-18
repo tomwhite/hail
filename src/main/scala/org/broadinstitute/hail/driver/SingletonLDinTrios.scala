@@ -9,7 +9,7 @@ import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.{Logging, RichRDD}
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.methods.{Filter, Pedigree}
-import org.broadinstitute.hail.utils.SparseVariantSampleMatrix
+import org.broadinstitute.hail.utils.{SparseVariantSampleMatrix, SparseVariantSampleMatrixRRDBuilder}
 import org.broadinstitute.hail.variant.GenotypeType.{GenotypeType => _, _}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -424,11 +424,8 @@ object SingletonLDinTrios extends Command {
 
     val partitioner = new HashPartitioner(options.number_partitions)
 
-    val triosRDD = trioVDS.aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(trioVDS.sampleIds))({
-      case(counter,v,va,s,sa,i,g) =>
-        counter.addGenotype(v.toString(),i,g)},{
-      case(c1,c2) => c1.merge(c2)},
-      {case (v,va) => triosGeneAnn(va).getOrElse("None").toString}
+    val triosRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(trioVDS,partitioner)(
+      {case (v,va) => triosGeneAnn(va).get.toString}
     ).mapValues({
       case svm => new VariantPairsCounter(svm,ped.value)
     }).persist(StorageLevel.MEMORY_AND_DISK)
@@ -458,14 +455,10 @@ object SingletonLDinTrios extends Command {
     //Only keep variants that are of interest and have a gene annotation (although they should match those of trios!)
     def variantsOfInterestFilter = {(v: Variant, va: Annotation) => exacGeneAnn(va).isDefined && bcUniqueVariants.value.contains(v.toString)}
 
-    val exacRDD = exacVDS.filterVariants(variantsOfInterestFilter).
-      filterSamples((s: String, sa: Annotation) => !trioVDS.sampleIds.contains(s)).
-        aggregateByAnnotation(partitioner,new SparseVariantSampleMatrix(exacVDS.sampleIds))({
-          case(counter,v,va,s,sa,i,g) =>
-            counter.addGenotype(v.toString(),i,g)},{
-          case(c1,c2) => c1.merge(c2)},
-          {case (v,va) => exacGeneAnn(va).getOrElse("None").toString}
-        ).persist(StorageLevel.MEMORY_AND_DISK)
+    val exacRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(exacVDS.filterVariants(variantsOfInterestFilter).
+      filterSamples((s: String, sa: Annotation) => !trioVDS.sampleIds.contains(s)),partitioner)(
+      {case (v,va) => exacGeneAnn(va).get.toString}
+    ).persist(StorageLevel.MEMORY_AND_DISK)
 
     info(exacRDD.map({
       case(gene,vs) => ("Gene: %s\tnVariants: %d\tnSamples: %d\tnGenotypes: %d").format(gene,vs.variants.size, vs.nSamples, vs.nGenotypes())
