@@ -299,7 +299,7 @@ object SingletonLDinTrios extends Command {
     private def probOnSameHaplotypeWithEM(exac: SparseVariantSampleMatrix, variantID1: String, variantID2: String) : Option[Double] = {
       phaseWithEM(exac,variantID1,variantID2) match{
         case Some(haplotypes) =>
-          return Some(haplotypes(1) * haplotypes(2) / (haplotypes(1) * haplotypes(2) + haplotypes(0) * haplotypes(3)))
+          return Some(haplotypes(0) * haplotypes(3) / (haplotypes(1) * haplotypes(2) + haplotypes(0) * haplotypes(3)))
         case None => None
       }
 
