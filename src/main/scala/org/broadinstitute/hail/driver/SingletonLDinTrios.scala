@@ -167,7 +167,7 @@ object SingletonLDinTrios extends Command {
 
     val variantPairs = (for(trio <- ped.completeTrios) yield{
       getHetPhasedVariantPairs(trio.kid,trio.dad,trio.mom) ++ getHetPhasedVariantPairs(trio.kid,trio.mom,trio.dad)
-    }).flatten
+    }).flatten.filter(_._3.isDefined)
 
 
 
@@ -197,7 +197,7 @@ object SingletonLDinTrios extends Command {
 
     //Private functions
     private def computeExACphase(exac : SparseVariantSampleMatrix) = {
-      info("Computing ExAC phase for "+variantPairs.size+" variant pairs...")
+      //info("Computing ExAC phase for "+variantPairs.size+" variant pairs...")
       variantPairs.foreach({ case (v1, v2, sameTrioHap) =>
 
         //Only store results where sites could be trio-phased
@@ -205,7 +205,7 @@ object SingletonLDinTrios extends Command {
           val k = (exac.getAC(v1), exac.getAC(v2))
           val v = new VPCResult(sameTrioHap.get)
           //Check if could be found in ExAC and how it seggregates
-          info("Computing ExAC segregation for variant-pair:" + v1 +" | "+v2)
+          //info("Computing ExAC segregation for variant-pair:" + v1 +" | "+v2)
           foundInSameSampleInExAC(exac,v1, v2) match {
             case Some(sameExacHap) =>
               v.coSegExAC(sameExacHap,sameTrioHap.get)
@@ -213,7 +213,7 @@ object SingletonLDinTrios extends Command {
           }
 
           //Compute whether on the same haplotype based on EM using ExAC
-          info("Computing ExAC phase for variant-pair:" + v1 +" | "+v2)
+          //info("Computing ExAC phase for variant-pair:" + v1 +" | "+v2)
           probOnSameHaplotypeWithEM(exac,v1,v2) match {
             case Some(probSameHap) => v.sameHapExAC(probSameHap>0.5,sameTrioHap.get)
             case None =>
@@ -370,7 +370,7 @@ object SingletonLDinTrios extends Command {
         2.0*gtCounts(8) + gtCounts(5) + gtCounts(7)  //n.ab
       ))
 
-      info("EM initialization done.")
+      //info("EM initialization done.")
 
       //Initial estimate with AaBb contributing equally to each haplotype
       var p_next = (const_counts :+ new DenseVector(Array.fill[Double](4)(gtCounts(4)/2.0))) :/ nHaplotypes
@@ -393,7 +393,7 @@ object SingletonLDinTrios extends Command {
           ) :/ nHaplotypes
 
       }
-      info("EM converged after " + i.toString + " iterations.")
+      //info("EM converged after " + i.toString + " iterations.")
       return Some(p_next :* nHaplotypes)
 
     }
@@ -419,7 +419,6 @@ object SingletonLDinTrios extends Command {
     val samplesInTrios = ped.value.completeTrios.foldLeft(Set[String]())({case (acc,trio) => acc ++ Set(trio.mom,trio.dad,trio.kid)})
 
     //Filter variants to keep autosomes only and samples to keep only complete trios
-    info("nSamples before filtering: " + state.vds.sampleIds.size.toString)
     val trioVDS = state.vds.filterVariants(autosomeFilter).filterSamples((s: String, sa: Annotation) => samplesInTrios.contains(s))
 
     val partitioner = new HashPartitioner(options.number_partitions)
@@ -458,18 +457,20 @@ object SingletonLDinTrios extends Command {
     val exacRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(exacVDS.filterVariants(variantsOfInterestFilter).
       filterSamples((s: String, sa: Annotation) => !trioVDS.sampleIds.contains(s)),partitioner)(
       {case (v,va) => exacGeneAnn(va).get.toString}
-    ).persist(StorageLevel.MEMORY_AND_DISK)
+    )
+      //.persist(StorageLevel.MEMORY_AND_DISK)
 
-    info(exacRDD.map({
+    /**info(exacRDD.map({
       case(gene,vs) => ("Gene: %s\tnVariants: %d\tnSamples: %d\tnGenotypes: %d").format(gene,vs.variants.size, vs.nSamples, vs.nGenotypes())
-    }).collect().mkString("\n"))
+    }).collect().mkString("\n"))*/
 
   // TODO: Print out partitioner
-    val callsByGene = triosRDD.join(exacRDD,partitioner).persist(StorageLevel.MEMORY_AND_DISK)
+    val callsByGene = triosRDD.join(exacRDD,partitioner)
+    //.persist(StorageLevel.MEMORY_AND_DISK)
 
-    info(callsByGene.map({
+    /**info(callsByGene.map({
       case(gene,(trios,exac)) => ("Gene: %s\tnVariantPairs: %d").format(gene,trios.variantPairs.size)
-    }).collect().mkString("\n"))
+    }).collect().mkString("\n"))**/
 
 
     //val x = new SparseVector()
