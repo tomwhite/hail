@@ -1,19 +1,17 @@
 package org.broadinstitute.hail.driver
 
-import java.io.{BufferedWriter, File, FileWriter}
-
-import breeze.linalg.{DenseVector, SparseVector, max, sum}
+import breeze.linalg.{DenseVector, max, sum}
 import breeze.numerics.abs
 import org.apache.spark.HashPartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.{Logging, RichRDD}
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.methods.{Filter, Pedigree}
+import org.broadinstitute.hail.methods.Pedigree
 import org.broadinstitute.hail.utils.{SparseVariantSampleMatrix, SparseVariantSampleMatrixRRDBuilder}
-import org.broadinstitute.hail.variant.GenotypeType.{GenotypeType => _, _}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.variant.GenotypeType._
 
 import scala.collection.mutable
 import scala.language.postfixOps
@@ -324,32 +322,48 @@ object SingletonLDinTrios extends Command {
         * (7) Aabb
         * (8) aabb
         */
-      val gtCounts = new DenseVector(exac.sampleIDs.foldLeft(new Array[Int](9))({case (acc,s) =>
-
-        (exac.getGenotype(variantID1,s) ,exac.getGenotype(variantID2,s)) match{
-          case (Some(gt1),Some(gt2)) => {
-            if(gt1.isHomRef){
-              if(gt2.isHomRef){acc(0)+=1}
-              else if(gt2.isHet){acc(3)+=1}
-              else if(gt2.isHomVar){acc(6)+=1}
-            }
-            else if(gt1.isHet){
-              if(gt2.isHomRef){acc(1)+=1}
-              else if(gt2.isHet){acc(4)+=1}
-              else if(gt2.isHomVar){acc(7)+=1}
-            }
-            else if(gt1.isHomVar){
-              if(gt2.isHomRef){acc(2)+=1}
-              else if(gt2.isHet){acc(5)+=1}
-              else if(gt2.isHomVar){acc(8)+=1}
-            }
-          }
-          case _ =>
+        def getIndex(g1: GenotypeType, g2: GenotypeType) : Int = {
+        (g1, g2) match {
+          case (HomRef, HomRef) => 0
+          case (Het, HomRef) => 1
+          case (HomVar, HomRef) => 2
+          case (HomRef, Het) => 3
+          case (Het, Het) => 4
+          case (HomVar, Het) => 5
+          case (HomRef, HomVar) => 6
+          case (Het, HomVar) => 7
+          case (HomVar,HomVar) => 8
+          case _ => -1
         }
-        acc
-      }))
+      }
 
-      val nSamples = gtCounts.foldLeft(0)({case (acc,x) => acc+x})
+      val gtCounts = new DenseVector(new Array[Int](9))
+
+      val v1_gt = exac.getVariant(variantID1)
+      val v2_gt = exac.getVariant(variantID2)
+
+      //Add all HomRef/HomRef counts
+      gtCounts(0) += exac.nSamples - (v1_gt.keys.toSet ++ v2_gt.keys.toSet ).size
+
+      //Add all non-homref genotype counts from v1
+      v1_gt.foreach({
+        case (s,g1) =>
+          val index = v2_gt.get(s) match {
+            case Some(g2) =>
+              v2_gt.remove(s)
+              getIndex(g1.gtType, g2.gtType)
+            case None =>
+              getIndex(g1.gtType,GenotypeType.HomRef)
+          }
+          if(index > -1){ gtCounts(index) += 1 }
+      })
+
+      //Add all v2-specific counts
+      v2_gt.foreach({
+        case (s,g2) => if(g2.isCalled){ gtCounts(getIndex(GenotypeType.HomRef,g2.gtType)) += 1 }
+      })
+
+      val nSamples = sum(gtCounts)
 
       //Needs some non-ref samples to compute
       if(gtCounts(0) >= nSamples){ return None}
@@ -439,7 +453,7 @@ object SingletonLDinTrios extends Command {
 
 
     info(triosRDD.map({
-      case(gene,vs) => ("Gene: %s\tnVariantPairs: %d\tnSamples: %d").format(gene,vs.variantPairs.size,vs.trios.nSamples)
+      case(gene,vs) => ("Gene: %s\tnVariantPairs: %d").format(gene,vs.variantPairs.size)
     }).collect().mkString("\n"))
 
     info("Found " + uniqueVariants.size.toString + " variants in pairs in samples.")
@@ -478,7 +492,9 @@ object SingletonLDinTrios extends Command {
     //write results
     new RichRDD(callsByGene.map(
       {case(gene,(trios,exac)) =>
+        val now = System.nanoTime
         trios.addExac(exac)
+        info("Gene %s phasing done in %.1f seconds.".format(gene,(System.nanoTime - now) / 10e9))
         trios.toString(gene)
       })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
 
