@@ -47,6 +47,27 @@ object SparseVariantSampleMatrixRRDBuilder {
       { (svsm1,svsm2) => svsm1.merge(svsm2) })
   }
 
+  def buildByAnnotation2[K](vsm: VariantSampleMatrix[Genotype], sc: SparkContext, partitioner : Partitioner)(
+    mapOp: (Variant, Annotation)  => K)(implicit uct: ClassTag[K]): RDD[(K, SparseVariantSampleMatrix)] = {
+
+    //Broadcast sample IDs
+    val bcSampleIds = sc.broadcast(vsm.sampleIds)
+
+    vsm.rdd
+      .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[Genotype])]) =>
+        val gtBuilder = new mutable.ArrayBuilder.ofByte()
+        val siBuilder = new ArrayBuilder.ofInt()
+        it.map { case (v, va, gs) =>
+          gtBuilder.clear()
+          siBuilder.clear()
+          val sg = gs.iterator.zipWithIndex.foldLeft((siBuilder,gtBuilder))({
+            case (acc,(g,i)) => if(!g.isHomRef) (acc._1 += i,  acc._2 += g.gt.getOrElse(-1).toByte) else acc
+          })
+          (mapOp(v,va), new SparseVariantSampleMatrix(bcSampleIds.value).addVariant(v.toString,siBuilder.result(),gtBuilder.result()))
+        }
+      }.reduceByKey(partitioner, { (svsm1,svsm2) => svsm1.merge(svsm2) } )
+  }
+
 }
 
 class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Serializable {
