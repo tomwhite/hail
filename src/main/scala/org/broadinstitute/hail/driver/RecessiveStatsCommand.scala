@@ -54,7 +54,7 @@ object RecessiveStatsCommand extends Command {
 
     def run(state: State, options: Options): State = {
 
-      val casesVDS = filterVDS(state,options)
+      /**val casesVDS = filterVDS(state,options)
       val controlsVDS = filterVDS(State(state.sc,state.sqlContext,VariantSampleMatrix.read(state.sqlContext, options.controls_input)),options)
 
       val casesGeneAnn = casesVDS.queryVA(options.gene_annotation)._2
@@ -81,7 +81,7 @@ object RecessiveStatsCommand extends Command {
         callsByGene.map({case (gene, (cases,controls)) =>
           (gene,new GeneBurden(cases,controls))
         })
-
+  **/
       state
     }
 }

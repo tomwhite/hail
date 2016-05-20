@@ -56,45 +56,33 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
 
   //Stores the variants -> sample mappings
   //Populated when adding variants
-  private val v_sindices = ArrayBuffer[Int]()
-  private val v_genotypes = ArrayBuffer[Byte]()
-  private val vindices = ArrayBuffer[Int]()
+  private val v_sindices = ArrayBuffer[Array[Int]]()
+  private val v_genotypes = ArrayBuffer[Array[Byte]]()
+  //private val vindices = ArrayBuffer[Int]()
 
   //Stores the samples -> variants mappings
   //Lazily computed from variants -> sample mappings
   //when accessing per-sample data
-  private val s_vindices = ArrayBuffer[Int]()
-  private val s_genotypes = ArrayBuffer[Byte]()
-  private val sindices = ArrayBuffer[Int]()
+  private val s_vindices = ArrayBuffer[Array[Int]]()
+  private val s_genotypes = ArrayBuffer[Array[Byte]]()
+  //private val sindices = ArrayBuffer[Int]()
 
   def nGenotypes() : Int = {
     v_genotypes.size
   }
 
-  def addVariant(variant: String, genotypes: Iterable[Genotype]) : SparseVariantSampleMatrix = {
-
-    var sindex = 0
-    genotypes.foreach( gt => {
-        addGenotype(variant,sindex,gt)
-        sindex += 1
-      }
-    )
-    this
-  }
-
   def addVariant(variant: String, samples: Array[Int], genotypes: Array[Byte]) : SparseVariantSampleMatrix = {
 
-    vindices += v_genotypes.size
     variantsIndex.update(variant,variants.size)
     variants += variant
-    v_sindices ++= samples
-    v_genotypes ++= genotypes
+    v_sindices += samples
+    v_genotypes += genotypes
 
     this
   }
 
 
-  def addGenotype(variant: String, index: Int, genotype: Genotype) : SparseVariantSampleMatrix ={
+  /**def addGenotype(variant: String, index: Int, genotype: Genotype) : SparseVariantSampleMatrix ={
 
     //Only record non-0 genotypes
     if(!genotype.isHomRef) {
@@ -131,10 +119,10 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
         }
     }
     this
-  }
+  }**/
 
   def merge(that: SparseVariantSampleMatrix): SparseVariantSampleMatrix = {
-    this.vindices ++= that.vindices.map({x => x + this.v_sindices.size})
+
     that.variantsIndex.foreach({
       case (k,v) => variantsIndex.update(k,v+variants.size)
     })
@@ -162,11 +150,8 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
     val variant = mutable.Map[String,Genotype]()
 
     if(variantIndex > -1) {
-
-      val nextVariantIndex = if (vindices.size > variantIndex + 1) vindices(variantIndex + 1) else v_sindices.size
-
-      Range(vindices(variantIndex), nextVariantIndex).foreach({
-        case i => variant.update(sampleIDs(v_sindices(i)), Genotype(v_genotypes(i)))
+      Range(0, v_sindices(variantIndex).size).foreach({
+        case i => variant.update(sampleIDs(v_sindices(variantIndex)(i)), Genotype(v_genotypes(variantIndex)(i)))
       })
     }
 
@@ -202,12 +187,10 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
 
     if(sampleIndex < 0) { return sample }
 
-    if(sindices.isEmpty){ buildSampleView() }
+    if(s_vindices.isEmpty){ buildSampleView() }
 
-    val nextSampleIndex = if(sindices.size > sampleIndex+1) sindices(sampleIndex+1) else s_vindices.size
-
-    Range(sindices(sampleIndex),nextSampleIndex).foreach({
-      case i => sample.update(variants(s_vindices(i)), Genotype(s_genotypes(i)))
+    Range(0,s_vindices(sampleIndex).size).foreach({
+      i => sample.update(variants(s_vindices(sampleIndex)(i)), Genotype(s_genotypes(sampleIndex)(i)))
     })
 
     return sample
@@ -215,51 +198,31 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
 
   private def buildSampleView() = {
 
-    //Simple class to aggregate data while taking advantage of the variants been ordered
-    class SampleMapBuilder {
 
-      var currVariant = 0
-      var nextVariantIndex = if (vindices.size > 1) vindices(1) else Int.MaxValue
-      val x = ListBuffer[(Int, Int, Byte)]()
 
-      def add(v_gindex: Int, index: Int, genotype: Byte): SampleMapBuilder = {
-        //Update variant if moved to the next variant
-        while (index >= nextVariantIndex) {
-          currVariant += 1
-          nextVariantIndex = if (vindices.size > currVariant+1) vindices(currVariant+1) else Int.MaxValue
+    //Loop through all variants and collect (variant, samples, genotype) then groupBy sample
+    // and add variant/genotype info
+    val vsg = (for( v <-Range(0,v_sindices.size); i <- Range(0,v_sindices(v).size)) yield {
+      (v,v_sindices(v)(i),v_genotypes(v)(i))
+    }).groupBy({case (vindex,sindex,gt) => sindex})
+
+    val vBuilder = new ArrayBuilder.ofInt
+    val gBuilder = new ArrayBuilder.ofByte
+
+    Range(0,sampleIDs.size).foreach({
+      si =>
+        vBuilder.clear()
+        gBuilder.clear()
+        if(vsg.contains(si)){
+          vsg(si).foreach({
+            case(v,s,g) =>
+              vBuilder += v
+              gBuilder += g
+          })
         }
-        x.+=((v_gindex, currVariant, genotype))
-        this
-      }
-
-      def getSortedIterator: Iterator[(Int, Int, Byte)] = {
-        x.sortWith((left,right) => left._1 < right._1).iterator
-      }
-
-    }
-
-    //Build a sample -> variant map
-    val sampleMap = v_sindices.zipWithIndex.foldLeft(new SampleMapBuilder())({
-      case(acc,(v_gindex,i)) => acc.add(v_gindex,i,v_genotypes(i))
+        s_vindices += vBuilder.result()
+        s_genotypes += gBuilder.result()
     })
-
-    //Populate Arrays
-    var currentSample = 0
-    sindices += 0
-    sampleMap.getSortedIterator.foreach({
-      case (sindex,vindex,genotype) =>
-        //Check if sample needs to be added
-        while(currentSample != sindex){
-          sindices += s_genotypes.size
-          currentSample += 1
-        }
-        s_genotypes += genotype
-        s_vindices += vindex
-    })
-    //Add last samples even if no genotypes.
-    while(sindices.size < sampleIDs.size){
-      sindices += s_genotypes.size
-    }
 
   }
 
@@ -271,18 +234,9 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
    val variantIndex = variantsIndex.getOrElse(variantID,-1)
    if(variantIndex < 0){ return None}
 
-   val nextVariantIndex = if(vindices.size > variantIndex+1) vindices(variantIndex+1) else v_sindices.size
-
-   var i = vindices(variantIndex)
-
-   while(i < nextVariantIndex){
-     if(v_sindices(i) == sampleIndex){ return Some(Genotype(v_genotypes(i))) }
-     i +=1
-   }
-
-   /**Range(vindices(variantIndex),nextVariantIndex).foreach({
-     case (i) => if(v_sindices(i) == sampleIndex){ return Some(Genotype(v_genotypes(i))) }
-   })**/
+   Range(0,v_sindices(variantIndex).size).foreach({
+     case i => if(v_sindices(variantIndex)(i) == sampleIndex){ return Some(Genotype(v_genotypes(variantIndex)(i))) }
+   })
 
    return Some(Genotype(0)) //TODO would be best not to hardcode
 
@@ -293,9 +247,7 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
    val variantIndex = variantsIndex.getOrElse(variantID,-1)
    if(variantIndex < 0){ return 0}
 
-   val nextVariantIndex = if(vindices.size > variantIndex+1) vindices(variantIndex+1) else v_genotypes.size
-
-   v_genotypes.slice(vindices(variantIndex),nextVariantIndex).foldLeft(0)({
+   v_genotypes(variantIndex).foldLeft(0)({
      case (acc, gt) =>
        val genotype = Genotype(gt)
        if(genotype.isHet){acc +1}
