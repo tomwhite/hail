@@ -3,7 +3,7 @@ package org.broadinstitute.hail.utils
 import java.nio.ByteBuffer
 
 import breeze.linalg.SparseVector
-import org.apache.spark.{Partitioner, SparkEnv}
+import org.apache.spark.{Partitioner, SparkContext, SparkEnv}
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.variant.{Genotype, GenotypeType, Variant, VariantSampleMatrix}
@@ -24,8 +24,11 @@ object SparseVariantSampleMatrixRRDBuilder {
 
   //Given a mapping from a variant and its annotations to use as the key to the resulting PairRDD,
   //Aggregates the data in a SparseSampleVariantMatrix
-  def buildByAnnotation[K](vsm: VariantSampleMatrix[Genotype], partitioner : Partitioner)(
+  def buildByAnnotation[K](vsm: VariantSampleMatrix[Genotype], sc: SparkContext, partitioner : Partitioner)(
     mapOp: (Variant, Annotation)  => K)(implicit uct: ClassTag[K]): RDD[(K, SparseVariantSampleMatrix)] = {
+
+    //Broadcast sample IDs
+    val bcSampleIds = sc.broadcast(vsm.sampleIds)
 
     vsm.rdd
       .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[Genotype])]) =>
@@ -39,7 +42,7 @@ object SparseVariantSampleMatrixRRDBuilder {
           })
           (mapOp(v,va), (v.toString,siBuilder.result(),gtBuilder.result()))
         }
-      }.aggregateByKey(new SparseVariantSampleMatrix(vsm.sampleIds), partitioner) (
+      }.aggregateByKey(new SparseVariantSampleMatrix(bcSampleIds.value), partitioner) (
       { case (svsm, (v,sampleIndices,genotypes)) => svsm.addVariant(v,sampleIndices,genotypes) },
       { (svsm1,svsm2) => svsm1.merge(svsm2) })
   }
@@ -82,44 +85,22 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
   }
 
 
-  /**def addGenotype(variant: String, index: Int, genotype: Genotype) : SparseVariantSampleMatrix ={
+  def addGenotype(variant: String, index: Int, genotype: Genotype) : SparseVariantSampleMatrix ={
 
-    //Only record non-0 genotypes
-    if(!genotype.isHomRef) {
-        //Check if adding genotypes to last variant or not
-        if(variants.size < 1 || variants.last != variant){
-          //If the variant is already present, then update indices appropriately
-          val vindex = variants.indexOf(variant)
-          if (vindex > 0) {
-            //Find the exact place to insert the genotype (keep order)
-            var gindex = vindices(vindex)
-            while(gindex < vindices(vindex+1) && v_sindices(gindex) < index){gindex += 1}
+    if(!genotype.isHomRef){
 
-            //Add the genotype
-            v_genotypes.insert(gindex,genotype.gt.getOrElse(-1).toByte)
-            v_sindices.insert(gindex,index)
-            Range(vindex+1,vindices.size).foreach({
-              case i => vindices.update(i, vindices(i)+1)
-            })
+      variantsIndex.get(variant) match {
+        case Some(v) =>
+          v_sindices.update(v,v_sindices(v):+index)
+          v_genotypes.update(v,v_genotypes(v):+genotype.gt.getOrElse(-1).toByte)
+        case None =>
+          v_sindices.append(Array(index))
+          v_genotypes.append(Array(genotype.gt.getOrElse(-1).toByte))
+      }
 
-          }
-          //Otherwise append
-          else {
-            vindices += v_genotypes.size
-            variantsIndex.update(variant,variants.size)
-            variants += variant
-            v_sindices += index
-            v_genotypes += genotype.gt.getOrElse(-1).toByte
-          }
-        }
-        //Append genotypes to last variant
-        else{
-          v_sindices += index
-          v_genotypes += genotype.gt.getOrElse(-1).toByte
-        }
     }
     this
-  }**/
+  }
 
   def merge(that: SparseVariantSampleMatrix): SparseVariantSampleMatrix = {
 

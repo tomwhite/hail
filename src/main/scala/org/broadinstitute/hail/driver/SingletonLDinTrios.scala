@@ -437,7 +437,7 @@ object SingletonLDinTrios extends Command {
 
     val partitioner = new HashPartitioner(options.number_partitions)
 
-    val triosRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(trioVDS,partitioner)(
+    val triosRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(trioVDS,state.sc , partitioner)(
       {case (v,va) => triosGeneAnn(va).get.toString}
     ).mapValues({
       case svm => new VariantPairsCounter(svm,ped.value)
@@ -469,7 +469,7 @@ object SingletonLDinTrios extends Command {
     def variantsOfInterestFilter = {(v: Variant, va: Annotation) => exacGeneAnn(va).isDefined && bcUniqueVariants.value.contains(v.toString)}
 
     val exacRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(exacVDS.filterVariants(variantsOfInterestFilter).
-      filterSamples((s: String, sa: Annotation) => !trioVDS.sampleIds.contains(s)),partitioner)(
+      filterSamples((s: String, sa: Annotation) => !trioVDS.sampleIds.contains(s)), state.sc, partitioner)(
       {case (v,va) => exacGeneAnn(va).get.toString}
     )
       //.persist(StorageLevel.MEMORY_AND_DISK)
