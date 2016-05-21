@@ -73,10 +73,10 @@ object SparseVariantSampleMatrixRRDBuilder {
 class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Serializable {
 
   val nSamples = sampleIDs.length
-  val samplesIndex = sampleIDs.zipWithIndex.toMap
+  lazy val samplesIndex = sampleIDs.zipWithIndex.toMap
 
   val variants = ArrayBuffer[String]()
-  val variantsIndex = mutable.Map[String,Int]()
+  lazy val variantsIndex = variants.zipWithIndex.toMap
 
   //Stores the variants -> sample mappings
   //Populated when adding variants
@@ -97,7 +97,6 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
 
   def addVariant(variant: String, samples: Array[Int], genotypes: Array[Byte]) : SparseVariantSampleMatrix = {
 
-    variantsIndex.update(variant,variants.size)
     variants += variant
     v_sindices += samples
     v_genotypes += genotypes
@@ -106,7 +105,7 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
   }
 
 
-  def addGenotype(variant: String, index: Int, genotype: Genotype) : SparseVariantSampleMatrix ={
+  /**def addGenotype(variant: String, index: Int, genotype: Genotype) : SparseVariantSampleMatrix ={
 
     if(!genotype.isHomRef){
 
@@ -121,13 +120,10 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
 
     }
     this
-  }
+  }*/
 
   def merge(that: SparseVariantSampleMatrix): SparseVariantSampleMatrix = {
 
-    that.variantsIndex.foreach({
-      case (k,v) => variantsIndex.update(k,v+variants.size)
-    })
     this.variants ++= that.variants
     this.v_sindices ++= that.v_sindices
     this.v_genotypes ++= that.v_genotypes
