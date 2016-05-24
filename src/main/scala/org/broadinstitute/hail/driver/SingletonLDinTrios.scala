@@ -200,7 +200,9 @@ object SingletonLDinTrios extends Command {
 
         //Only store results where sites could be trio-phased
         if (sameTrioHap.isDefined) {
-          val k = (exac.getAC(v1), exac.getAC(v2))
+          val AC1 = exac.getAC(v1)
+          val AC2 = exac.getAC(v2)
+          val k = if(AC1 < AC2) (AC1,AC2) else (AC2,AC1)
           val v = new VPCResult(sameTrioHap.get)
           //Check if could be found in ExAC and how it seggregates
           //info("Computing ExAC segregation for variant-pair:" + v1 +" | "+v2)
