@@ -85,7 +85,7 @@ class VariantQCCombiner extends Serializable {
       }
     }
 
-    g.dosage.foreach{a =>
+    g.gp.foreach{ a =>
       e += a(1) + 2*a(2)
       f += a(1) + 4*a(2)
       N += a.sum

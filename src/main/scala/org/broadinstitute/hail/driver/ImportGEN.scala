@@ -38,6 +38,8 @@ object ImportGEN extends Command {
 
   override def supportsMultiallelic = false
 
+  def requiresVDS = false
+
   def run(state: State, options: Options): State = {
     val nPartitions = if (options.nPartitions > 0) Some(options.nPartitions) else None
 

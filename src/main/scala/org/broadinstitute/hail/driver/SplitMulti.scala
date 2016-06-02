@@ -83,7 +83,7 @@ object SplitMulti extends Command {
     for (g <- it) {
 
       val gadsum = g.ad.map(gadx => (gadx, gadx.sum))
-      val isDosage = Genotype.flagHasDosage(g.flags)
+      val isDosage = Genotype.flagHasGP(g.flags)
 
       // svj corresponds to the ith allele of v
       for (((svj, i), j) <- splitVariants.iterator.zipWithIndex) {
@@ -111,24 +111,24 @@ object SplitMulti extends Command {
           if (propagateGQ)
             g.gq.foreach { gqx => gb.setGQ(gqx) }
 
-          g.pl.foreach { gplx =>
+          g.px.foreach { gplx =>
             val plx = gplx.iterator.zipWithIndex
               .map { case (p, k) => (splitGT(k, i), p) }
               .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
-            gb.setPL(plx)
+            gb.setPX(plx)
 
             if (!propagateGQ) {
-              val gq = Genotype.gqFromPL(plx)
+              val gq = Genotype.gqFromPX(plx)
               gb.setGQ(gq)
             }
           }
         } else {
-          val newdx = g.dosage.map { case gdx =>
+          val newdx = g.gp.map { case gdx =>
             val dx = gdx.iterator.zipWithIndex
               .map { case (d, k) => (splitGT(k, i), d) }
               .reduceByKeyToArray(3, 0.0)(_ + _)
 
-            gb.setDosage(dx)
+            gb.setGP(dx)
             dx
           }
 

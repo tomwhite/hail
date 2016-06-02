@@ -153,7 +153,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       }
 
       if (pl != null)
-        gb.setPL(pl)
+        gb.setPX(pl)
 
       if (g.hasGQ) {
         val gq = g.getGQ
@@ -161,7 +161,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
         if (!storeGQ) {
           if (pl != null) {
-            val gqFromPL = Genotype.gqFromPL(pl)
+            val gqFromPL = Genotype.gqFromPX(pl)
 
             if (!filter && gq != gqFromPL) {
               reportAcc += VCFReport.GQPLMismatch

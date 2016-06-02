@@ -32,6 +32,8 @@ object ImportBGEN extends Command {
 
   def newOptions = new Options
 
+  def requiresVDS = false
+
   override def supportsMultiallelic = true
 
   def run(state: State, options: Options): State = {

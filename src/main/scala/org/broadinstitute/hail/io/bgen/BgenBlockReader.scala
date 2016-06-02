@@ -106,7 +106,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
             genoBuilder.setGT(gt)
           }
 
-          genoBuilder.setDosage(normIntDosages)
+          genoBuilder.setGP(normIntDosages)
         }
 
         b.write(genoBuilder)

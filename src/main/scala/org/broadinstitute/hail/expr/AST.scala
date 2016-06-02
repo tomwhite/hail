@@ -422,7 +422,7 @@ case object TGenotype extends Type {
       a
     else {
       val g = a.asInstanceOf[Genotype]
-      Annotation(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.pl.map(_.toSeq).orNull, g.flags)
+      Annotation(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.px.map(_.toSeq).orNull, g.flags)
     }
 
   override def makeSparkReadable(a: Annotation): Genotype =
@@ -1022,9 +1022,9 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TGenotype, "gq") =>
       AST.evalFlatCompose[Genotype](ec, lhs)(_.gq)
     case (TGenotype, "pl") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.pl.map(a => a: IndexedSeq[Int]))
+      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.px.map(a => a: IndexedSeq[Int]))
     case (TGenotype, "dosage") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.dosage.map(a => a: IndexedSeq[Double]))
+      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.gp.map(a => a: IndexedSeq[Double]))
     case (TGenotype, "isHomRef") =>
       AST.evalCompose[Genotype](ec, lhs)(_.isHomRef)
     case (TGenotype, "isHet") =>
