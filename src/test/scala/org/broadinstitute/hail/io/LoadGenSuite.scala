@@ -40,7 +40,7 @@ class LoadGenSuite extends SparkSuite {
 
       var n = 0
       val result = for {g <- gs1} yield {
-        val dosNew = g.dosage
+        val dosNew = g.gp
 
         dosNew match {
           case Some(x) =>

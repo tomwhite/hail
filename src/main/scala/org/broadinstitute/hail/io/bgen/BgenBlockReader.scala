@@ -113,7 +113,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
           if (gt >= 0) {
             genoBuilder.setGT(gt)
           }
-          genoBuilder.setDosage(dosageArray)
+          genoBuilder.setGP(normIntDosages)
         }
 
         b.write(genoBuilder)

@@ -155,7 +155,7 @@ object GenLoader {
           genoBuilder.setGT(gt)
         }
 
-        genoBuilder.setDosage(normIntDosages)
+        genoBuilder.setGP(normIntDosages)
       }
 
       b.write(genoBuilder)
