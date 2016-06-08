@@ -44,6 +44,11 @@ object SingletonLDinTrios extends Command {
     @Args4jOption(required = false, name = "-p", aliases = Array("--partitions_number"), usage = "Number of partitions to use for gene aggregation.")
     var number_partitions: Int = 200
 
+    @Args4jOption(required = false, name = "-nocoseg", aliases = Array("--no_coseg"), usage = "Do not run co-seggregation analysis")
+    var nocoseg: Boolean = false
+
+    @Args4jOption(required = false, name = "-noem", aliases = Array("--no_EM"), usage = "Do not run haplotype analysis using EM algorithm")
+    var noem: Boolean = false
 
   }
   def newOptions = new Options
@@ -184,17 +189,17 @@ object SingletonLDinTrios extends Command {
       variantPairs.flatMap({case (v1,v2,phase) => List(v1,v2)}).toSet
     }
 
-    def this(trios: SparseVariantSampleMatrix, exac : SparseVariantSampleMatrix , ped : Pedigree) = {
+    def this(trios: SparseVariantSampleMatrix, exac : SparseVariantSampleMatrix , ped : Pedigree, coseg: Boolean = false, em: Boolean = true) = {
       this(trios,ped)
-      computeExACphase(exac)
+      computeExACphase(exac,coseg,em)
     }
 
-    def addExac(exac: SparseVariantSampleMatrix) = {
-      computeExACphase(exac)
+    def addExac(exac: SparseVariantSampleMatrix, coseg: Boolean = false, em: Boolean = true) = {
+      computeExACphase(exac,coseg,em)
     }
 
     //Private functions
-    private def computeExACphase(exac : SparseVariantSampleMatrix) = {
+    private def computeExACphase(exac : SparseVariantSampleMatrix, coseg: Boolean, em: Boolean) = {
       //info("Computing ExAC phase for "+variantPairs.size+" variant pairs...")
       variantPairs.foreach({ case (v1, v2, sameTrioHap) =>
 
@@ -206,17 +211,21 @@ object SingletonLDinTrios extends Command {
           val v = new VPCResult(sameTrioHap.get)
           //Check if could be found in ExAC and how it seggregates
           //info("Computing ExAC segregation for variant-pair:" + v1 +" | "+v2)
-          foundInSameSampleInExAC(exac,v1, v2) match {
-            case Some(sameExacHap) =>
-              v.coSegExAC(sameExacHap,sameTrioHap.get)
-            case None =>
+          if(coseg) {
+            foundInSameSampleInExAC(exac, v1, v2) match {
+              case Some(sameExacHap) =>
+                v.coSegExAC(sameExacHap, sameTrioHap.get)
+              case None =>
+            }
           }
 
           //Compute whether on the same haplotype based on EM using ExAC
           //info("Computing ExAC phase for variant-pair:" + v1 +" | "+v2)
-          probOnSameHaplotypeWithEM(exac,v1,v2) match {
-            case Some(probSameHap) => v.sameHapExAC(probSameHap>0.5,sameTrioHap.get)
-            case None =>
+          if(em) {
+            probOnSameHaplotypeWithEM(exac, v1, v2) match {
+              case Some(probSameHap) => v.sameHapExAC(probSameHap > 0.5, sameTrioHap.get)
+              case None =>
+            }
           }
 
           //Add results
@@ -418,6 +427,10 @@ object SingletonLDinTrios extends Command {
 
 
   def run(state: State, options: Options): State = {
+
+
+    val x = state.vds.metadata
+
     //Read PED file
     val ped = state.sc.broadcast(Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds))
 
@@ -439,7 +452,7 @@ object SingletonLDinTrios extends Command {
 
     val partitioner = new HashPartitioner(options.number_partitions)
 
-    val triosRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation2(trioVDS,state.sc , partitioner)(
+    val triosRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(trioVDS,state.sc , partitioner)(
       {case (v,va) => triosGeneAnn(va).get.toString}
     ).mapValues({
       case svm => new VariantPairsCounter(svm,ped.value)
@@ -470,32 +483,35 @@ object SingletonLDinTrios extends Command {
     //Only keep variants that are of interest and have a gene annotation (although they should match those of trios!)
     def variantsOfInterestFilter = {(v: Variant, va: Annotation) => exacGeneAnn(va).isDefined && bcUniqueVariants.value.contains(v.toString)}
 
-    val exacRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation2(exacVDS.filterVariants(variantsOfInterestFilter).
+    val exacRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(exacVDS.filterVariants(variantsOfInterestFilter).
       filterSamples((s: String, sa: Annotation) => !trioVDS.sampleIds.contains(s)), state.sc, partitioner)(
       {case (v,va) => exacGeneAnn(va).get.toString}
     )
       //.persist(StorageLevel.MEMORY_AND_DISK)
 
     /**info(exacRDD.map({
-      case(gene,vs) => ("Gene: %s\tnVariants: %d\tnSamples: %d\tnGenotypes: %d").format(gene,vs.variants.size, vs.nSamples, vs.nGenotypes())
-    }).collect().mkString("\n"))*/
+      * case(gene,vs) => ("Gene: %s\tnVariants: %d\tnSamples: %d\tnGenotypes: %d").format(gene,vs.variants.size, vs.nSamples, vs.nGenotypes())
+      * }).collect().mkString("\n"))*/
 
   // TODO: Print out partitioner
     val callsByGene = triosRDD.join(exacRDD,partitioner)
     //.persist(StorageLevel.MEMORY_AND_DISK)
 
     /**info(callsByGene.map({
-      case(gene,(trios,exac)) => ("Gene: %s\tnVariantPairs: %d").format(gene,trios.variantPairs.size)
-    }).collect().mkString("\n"))**/
+      * case(gene,(trios,exac)) => ("Gene: %s\tnVariantPairs: %d").format(gene,trios.variantPairs.size)
+      * }).collect().mkString("\n"))**/
 
 
     //val x = new SparseVector()
 
     //write results
+    val run_coseg = state.sc.broadcast(!options.nocoseg)
+    val run_em = state.sc.broadcast(!options.noem)
+
     new RichRDD(callsByGene.map(
       {case(gene,(trios,exac)) =>
         val now = System.nanoTime
-        trios.addExac(exac)
+        trios.addExac(exac,run_coseg.value,run_em.value)
         info("Gene %s phasing done in %.1f seconds.".format(gene,(System.nanoTime - now) / 10e9))
         trios.toString(gene)
       })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
