@@ -7,6 +7,7 @@ import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.io.gen.GenUtils._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.json4s._
@@ -58,6 +59,7 @@ class Genotype(private val _gt: Int,
   def fakeRef = (flags & Genotype.flagFakeRefBit) != 0
   def isGP = (flags & Genotype.flagHasGPBit) != 0
   def isPP = (flags & Genotype.flagHasPPBit) != 0
+  def isPL = !isGP && !isPP
 
   def check(v: Variant) {
     assert(gt.forall(i => i >= 0 && i < v.nGenotypes))
@@ -82,7 +84,7 @@ class Genotype(private val _gt: Int,
         isGP == g.isGP &&
         isPP == g.isPP &&
         ((!isGP &&  ((_px == null && g._px == null) || (_px != null && g._px != null && _px.sameElements(g._px)))) ||
-          (isGP && ((gp.isEmpty && g.gp.isEmpty) || (gp.isDefined && g.gp.isDefined && gp.get.zip(g.gp.get).forall{case (d1,d2) => math.abs(d1 - d2) <= 3.0e-4}))))
+          (isGP && ((gp().isEmpty && g.gp().isEmpty) || (gp().isDefined && g.gp().isDefined && gp().get.zip(g.gp().get).forall{case (d1,d2) => math.abs(d1 - d2) <= 3.0e-4}))))
 
     case _ => false
   }
@@ -125,55 +127,71 @@ class Genotype(private val _gt: Int,
 
   def px: Option[Array[Int]] = if (_px == null) None else Option(_px)
 
-  def pl (prior: Option[Array[Int]] = None): Option[Array[Int]] = ??? /*{
+  def uniformPrior = Option(new Array[Int](_px.length))
+
+  def linearToPhredScale(a: Array[Int]): Array[Int] = {
+    val x = a.map(phredConversionTable)
+    x.map{d => (d - x.min + 0.5).toInt}
+  }
+
+  def phredToLinearScale(a: Array[Int]): Array[Double] = {
+    val transformedProbs = a.map{case i => math.pow(10, i / -10.0)}
+    a.map{case i => math.pow(10, i / -10.0) / transformedProbs.sum}
+  }
+
+  def renormPhredScale(a: Array[Int]): Array[Int] = a.map{_ - a.min}
+
+  def pl (prior: Option[Array[Int]] = None): Option[Array[Int]] = {
+//    println("prior is " + prior)
     if (_px == null)
       None
-    else if (!isGP)
+    else if (isPL)
       Option(_px)
-    else {
-        val x = _px.map(phredConversionTable)
-        Option(x.map{d => (d - x.min + 0.5).toInt})
-      }
-  }*/
+    else if (prior.isDefined) {
+      require(prior.get.length == _px.length)
+      if (isPP)
+        Option(renormPhredScale(_px.zip(prior.get).map { case (i1, i2) => i1 - i2 }))
+      else if (isGP)
+        Option(renormPhredScale(linearToPhredScale(_px).zip(prior.get).map { case (i1, i2) => i1 - i2 }))
+      else
+        throw new UnsupportedOperationException
+    } else
+      None
+  }
 
-//  def pp (prior: Option[Array[Int]] = None): Option[Array[Int]] = {
-//    if (_px == null)
-//      None
-//    else if (isPP)
-//      Option(_px)
-//    else if (isGP) {
-//      val sumTransformedProbs = _px.map{case i => math.pow(10, i / -10.0)}.sum
-//      Option(_px.map{case i => math.pow(10, i / -10.0) / sumTransformedProbs})
-//    } else if (prior.isDefined) {
-//      val priorX = prior.get
-//      require(prior.getOrElse(Array[Int]()).size == _px.size, "prior length does not equal probability length")
-//      prior.getOrElse(Ar
-//    } else
-//      None
-//  }
-  /* def pp(prior: Array[Int]): Option[Array[Int]] = ??? {
+  def pp (prior: Option[Array[Int]] = None): Option[Array[Int]] = {
     if (_px == null)
       None
     else if (isPP)
       Option(_px)
-    else if (isGP)
-      Option(_px) //FIXME
-    else
-      _px.zip(prior).map(_ + _)
-  }*/
+    else if (prior.isDefined) {
+      require(prior.get.length == _px.length)
+      if (isPL)
+        Option(renormPhredScale(_px.zip(prior.get).map { case (i1, i2) => i1 + i2 }))
+      else if (isGP)
+        Option(renormPhredScale(linearToPhredScale(_px)))
+      else
+        throw new UnsupportedOperationException
+    } else
+      None
+  }
 
-  def gp: Option[Array[Double]] = ??? /*{
+  def gp (prior: Option[Array[Int]] = None): Option[Array[Double]] = {
     if (_px == null)
       None
     else if (isGP)
       Option(_px.map{ _ / 32768.0 })
-    else if (isPP) {
-      val sumTransformedProbs = _px.map{case i => math.pow(10, i / -10.0)}.sum
-      Option(_px.map{case i => math.pow(10, i / -10.0) / sumTransformedProbs})
-    } else {
+    else if (isPP)
+      Option(phredToLinearScale(_px))
+    else if (prior.isDefined) {
+      require(prior.get.length == _px.length)
+      if (isPL)
+        Option(phredToLinearScale(_px.zip(prior.get).map { case (i1, i2) => i1 + i2 }))
+      else
+        throw new UnsupportedOperationException
+    } else
       None
-    }
-  }*/
+  }
 
   def flags: Int = _flags
 
@@ -212,12 +230,13 @@ class Genotype(private val _gt: Int,
     b.append(gq.map(_.toString).getOrElse("."))
     b += ':'
     if (isGP)
-      b.append(gp.map(_.mkString(",")).getOrElse("."))
+      b.append(gp().map(_.mkString(",")).getOrElse("."))
     else if (isPP)
-      b.append(pp.map(_.mkString(",")).getOrElse("."))
+      b.append(pp().map(_.mkString(",")).getOrElse("."))
+    else if (isPL)
+      b.append(pl().map(_.mkString(",")).getOrElse("."))
     else
-      b.append(pl.map(_.mkString(",")).getOrElse("."))
-
+      throw new UnsupportedOperationException
     b.result()
   }
 
@@ -504,7 +523,7 @@ object Genotype {
 
     val px: Array[Int] =
       if (flagHasPX(flags)) {
-        val pxa = new Array[Int](v.nGenotypes)
+        val pxa = new Array[Int](triangle(nAlleles))
         if (gt >= 0) {
           var i = 0
           while (i < gt) {
@@ -705,11 +724,15 @@ class GenotypeBuilder(nAlleles: Int) {
     g.dp.foreach(setDP)
     g.gq.foreach(setGQ)
 
-    if (!g.isGP)
-      g.px.foreach(setPX)
-    else {
-      g.gp.foreach(setGP)
-    }
+    //FIXME!!!
+    if (g.isPL)
+      g.px.foreach(setPL)
+    else if (g.isPP)
+      g.px.foreach(setPP)
+    else if (g.isGP)
+      g.px.foreach(setGP)
+    else
+      throw new UnsupportedOperationException
 
     if (g.fakeRef)
       setFakeRef()

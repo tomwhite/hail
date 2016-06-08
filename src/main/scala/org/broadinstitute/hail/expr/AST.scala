@@ -937,8 +937,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TGenotype, "dp") => TInt
       case (TGenotype, "od") => TInt
       case (TGenotype, "gq") => TInt
+      case (TGenotype, "px") => TArray(TInt)
       case (TGenotype, "pl") => TArray(TInt)
-      case (TGenotype, "dosage") => TArray(TDouble)
+      case (TGenotype, "pp") => TArray(TInt)
+      case (TGenotype, "gp") => TArray(TDouble)
       case (TGenotype, "isHomRef") => TBoolean
       case (TGenotype, "isHet") => TBoolean
       case (TGenotype, "isHomVar") => TBoolean
@@ -1021,10 +1023,14 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalFlatCompose[Genotype](ec, lhs)(_.od)
     case (TGenotype, "gq") =>
       AST.evalFlatCompose[Genotype](ec, lhs)(_.gq)
-    case (TGenotype, "pl") =>
+    case (TGenotype, "px") =>
       AST.evalFlatCompose[Genotype](ec, lhs)(g => g.px.map(a => a: IndexedSeq[Int]))
-    case (TGenotype, "dosage") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.gp.map(a => a: IndexedSeq[Double]))
+    case (TGenotype, "pl") =>
+      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.pl().map(a => a: IndexedSeq[Int]))
+    case (TGenotype, "pp") =>
+      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.pp().map(a => a: IndexedSeq[Int]))
+    case (TGenotype, "gp") =>
+      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.gp().map(a => a: IndexedSeq[Double]))
     case (TGenotype, "isHomRef") =>
       AST.evalCompose[Genotype](ec, lhs)(_.isHomRef)
     case (TGenotype, "isHet") =>
@@ -1193,6 +1199,7 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 }
 
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
+  println("apply")
   override def typecheckThis(): BaseType = {
     (fn, args) match {
       case ("isMissing", Array(a)) =>
@@ -1215,7 +1222,13 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           parseError(s"Got invalid argument `${a.`type`} to function `$fn'")
         TString
 
-      case ("isDefined" | "isMissing" | "str" | "json", _) => parseError(s"`$fn' takes one argument")
+      case ("uniformPrior", Array(rhs)) =>
+        rhs.`type` match {
+          case TVariant => TArray(TInt)
+          case error => parseError(s"Got invalid argument `${error} to function `$fn'")
+        }
+
+      case ("isDefined" | "isMissing" | "str" | "json" | "uniformPrior", _) => parseError(s"`$fn' takes one argument")
       case _ => parseError(s"unknown function `$fn'")
     }
   }
@@ -1235,6 +1248,11 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(c)
       () => t.makeJSON(f())
+    case ("uniformPrior", Array(rhs)) =>
+      rhs.`type` match {
+        case TVariant => AST.evalCompose[Variant](c, rhs)(v => uniformPriorPhred(v.nGenotypes): IndexedSeq[Int])
+        case _ => throw new UnsupportedOperationException
+      }
   }
 }
 
@@ -1394,6 +1412,12 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       case (t, "orElse", Array(t2)) if t == t2 =>
         t
+      case (TGenotype, "pl", Array(TArray(TInt))) => TArray(TInt)
+      case (TGenotype, "pl", Array()) => TArray(TInt)
+      case (TGenotype, "pp", Array(TArray(TInt))) => TArray(TInt)
+      case (TGenotype, "pp", Array()) => TArray(TInt)
+      case (TGenotype, "gp", Array(TArray(TInt))) => TArray(TDouble)
+      case (TGenotype, "gp", Array()) => TArray(TDouble)
 
       case (t, _, _) =>
         parseError(s"`no matching signature for `$method(${rhsTypes.mkString(", ")})' on `$t'")
@@ -1401,6 +1425,25 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   }
 
   def eval(ec: EvalContext): () => Any = ((lhs.`type`, method, args): @unchecked) match {
+    case (TGenotype, "pl", Array(body)) =>
+      println("1")
+      AST.evalCompose[Genotype, IndexedSeq[Int]](ec, lhs, body) { case (g, p) =>
+        println(g)
+        println(p)
+        g.pl(Some(p.toArray)).map(x => x: IndexedSeq[Int]).orNull}
+    case (TGenotype, "pl", _) =>
+      println("2")
+      AST.evalCompose[Genotype](ec, lhs)(g => {        println(g)
+         g.pl().orNull})
+    case (TGenotype, "pp", Array(body)) =>
+      AST.evalCompose[Genotype, Array[Int]](ec, lhs, body) { case (g, p) => g.pp(Some(p))}
+    case (TGenotype, "pp", _) =>
+      AST.evalCompose[Genotype](ec, lhs)(g => g.pp())
+    case (TGenotype, "gp", Array(body)) =>
+      AST.evalCompose[Genotype, Array[Int]](ec, lhs, body) { case (g, p) => g.gp(Some(p))}
+    case (TGenotype, "gp", _) =>
+      AST.evalCompose[Genotype](ec, lhs)(g => g.gp())
+
     case (returnType, "find", Array(Lambda(_, param, body))) =>
       val localIdx = ec.a.length
       val localA = ec.a

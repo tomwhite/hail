@@ -614,7 +614,7 @@ object TempDir {
         hadoopMkdir(dirname, hConf)
 
         val fs = hadoopFS(tmpdir, hConf)
-        fs.deleteOnExit(new hadoop.fs.Path(dirname))
+//        fs.deleteOnExit(new hadoop.fs.Path(dirname))
 
         return new TempDir(dirname)
       } catch {
@@ -1120,6 +1120,10 @@ object Utils extends Logging {
     else
       s"${ds.toDouble / 1e12}TB"
   }
+
+  def uniformPriorPhred(n: Int) = Array.fill[Int](n)(0)
+
+  def uniformPriorLinear(n: Int) = Array.fill[Double](n)(1.0 / n)
 
   def someIf[T](p: Boolean, x: => T): Option[T] =
     if (p)

@@ -99,10 +99,10 @@ object Annotation {
     ad: Option[Array[Int]],
     dp: Option[Int],
     gq: Option[Int],
-    pl: Option[Array[Int]],
+    px: Option[Array[Int]],
     flags: Int) {
     def toGenotype =
-      Genotype(gt, ad, dp, gq, pl, flags)
+      Genotype(gt, ad, dp, gq, px, flags)
   }
 
   case class JSONExtractVariant(contig: String,

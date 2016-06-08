@@ -22,6 +22,8 @@ object HailConfiguration {
   var installDir: String = _
 
   var tmpDir: String = _
+
+  var uniformPrior: Boolean = _
 }
 
 object Main {

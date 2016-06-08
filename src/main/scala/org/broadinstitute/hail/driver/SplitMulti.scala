@@ -123,7 +123,7 @@ object SplitMulti extends Command {
             }
           }
         } else {
-          val newdx = g.gp.map { case gdx =>
+          val newdx = g.gp().map { case gdx =>
             val dx = gdx.iterator.zipWithIndex
               .map { case (d, k) => (splitGT(k, i), d) }
               .reduceByKeyToArray(3, 0.0)(_ + _)

@@ -30,8 +30,6 @@ object ExportGEN extends Command {
 
   def formatDosage(d: Double): String = d.formatted("%.4f")
 
-  def requiresVDS = true
-
   def run(state: State, options: Options): State = {
     val sc = state.sc
     val vds = state.vds
@@ -56,10 +54,12 @@ object ExportGEN extends Command {
       sb.append(v.alt)
 
       for (gt <- gs) {
-        val dosages = gt.gp match {
+        val dosages = gt.gp() match {
           case Some(x) => x
           case None => Array(0.0,0.0,0.0)
         }
+        sb += ' '
+        sb.append(formatDosage(dosages(0)))
         sb += ' '
         sb.append(formatDosage(dosages(1)))
         sb += ' '

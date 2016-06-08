@@ -102,7 +102,7 @@ class LoadBgenSuite extends SparkSuite {
 
         assert(vdsRemapped.rdd.map{case (v, va, gs) =>
           gs.map{case g =>
-            g.gp.forall(ad =>
+            g.gp().forall(ad =>
               ad.forall{case d =>
                 d >= 0.0 && d <= 1.0
               }
@@ -116,7 +116,7 @@ class LoadBgenSuite extends SparkSuite {
         val bgenFile = fileRoot + ".bgen"
         val qcToolLogFile = fileRoot + ".qctool.log"
         val statsFile = fileRoot + ".stats"
-        val qcToolPath = "qctool"
+        val qcToolPath = "/Users/jigold/Downloads/qctool_v1.4-osx/qctool"
 
         hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, true)
         hadoopDelete(bgenFile, sc.hadoopConfiguration, true)
@@ -160,7 +160,6 @@ class LoadBgenSuite extends SparkSuite {
           val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
           val originalFull = origVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
 
-<<<<<<< HEAD
           originalFull.fullOuterJoin(importedFull).map { case ((v, i), (gt1, gt2)) =>
             if (gt1 == gt2)
               true
@@ -170,24 +169,10 @@ class LoadBgenSuite extends SparkSuite {
               if (gt1.isDefined && gt2.isDefined) {
                 val gt1x = gt1.get
                 val gt2x = gt2.get
-                if (gt1x.dosage.zip(gt2x.dosage).map { case (d1, d2) => d1.zip(d2) }
+                if (gt1x.gp().zip(gt2x.gp()).map { case (d1, d2) => d1.zip(d2) }
                   .exists(_.forall { case (d1, d2) => math.abs(d1 - d2) <= 3.0e-4 })) {
                   println(s"WARN Not Same Genotype: v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
                   true
-=======
-          val genotypeResult = originalFull.fullOuterJoin(importedFull).map { case ((v, i), (gt1, gt2)) =>
-              if (gt1 == gt2)
-                true
-              else {
-                if (gt1.isDefined && gt2.isDefined) {
-                  val gt1x = gt1.get
-                  val gt2x = gt2.get
-                  if (gt1x.gp.get.zip(gt2x.gp.get).forall { case (d1, d2) => math.abs(d1 - d2) <= 3.0e-4 }) {
-                    println(s"Warning Not Same Genotype: v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
-                    true
-                  } else
-                    false
->>>>>>> jg_pp
                 } else {
                   println(s"ERROR Not Same Genotype: v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
                   false
