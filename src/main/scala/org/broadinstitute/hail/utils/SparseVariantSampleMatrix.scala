@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 import breeze.linalg.SparseVector
 import org.apache.spark.{Partitioner, SparkContext, SparkEnv}
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant.{Genotype, GenotypeType, Variant, VariantSampleMatrix}
 import org.broadinstitute.hail.variant.GenotypeType._
 
@@ -14,6 +14,8 @@ import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ArrayBuilder, ListBuffer, Map}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr.{TEmpty, Type}
 
 
 /**
@@ -47,14 +49,62 @@ object SparseVariantSampleMatrixRRDBuilder {
       { (svsm1,svsm2) => svsm1.merge(svsm2) })
   }
 
+  //Given a mapping from a variant and its annotations to use as the key to the resulting PairRDD,
+  //Aggregates the data in a SparseSampleVariantMatrix
+  def buildByAnnotation[K](vsm: VariantSampleMatrix[Genotype], sc: SparkContext, partitioner : Partitioner, variantAnnotations : List[String])(
+    mapOp: (Variant, Annotation)  => K)(implicit uct: ClassTag[K]): RDD[(K, SparseVariantSampleMatrix)] = {
+
+    //Broadcast sample IDs
+    val bcSampleIds = sc.broadcast(vsm.sampleIds)
+
+    //Create annotations signature / querier / inserter
+    var newVA : Type = TEmpty
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val querierBuilder = mutable.ArrayBuilder.make[Querier]
+    variantAnnotations.foreach({a =>
+      val (atype, aquerier) = vsm.queryVA(a)
+      querierBuilder += aquerier
+      val (s,i) = newVA.insert(atype.asInstanceOf[Type],expr.Parser.parseAnnotationRoot(a,"va"))
+      inserterBuilder += i
+      newVA = s
+
+    })
+    val queriers = sc.broadcast(querierBuilder.result())
+    val inserters = sc.broadcast(inserterBuilder.result())
+    val newVAbc = sc.broadcast(newVA)
+
+    vsm.rdd
+      .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[Genotype])]) =>
+        val gtBuilder = new mutable.ArrayBuilder.ofByte()
+        val siBuilder = new ArrayBuilder.ofInt()
+        it.map { case (v, va, gs) =>
+          gtBuilder.clear()
+          siBuilder.clear()
+          val reducedVA = queriers.value.map({qa => qa(va)})
+          val sg = gs.iterator.zipWithIndex.foldLeft((siBuilder,gtBuilder))({
+            case (acc,(g,i)) => if(!g.isHomRef) (acc._1 += i,  acc._2 += g.gt.getOrElse(-1).toByte) else acc
+          })
+          (mapOp(v,va), (v.toString,reducedVA,siBuilder.result(),gtBuilder.result()))
+        }
+      }.aggregateByKey(new SparseVariantSampleMatrix(bcSampleIds.value, newVAbc.value), partitioner) (
+      { case (svsm, (v,reducedVA,sampleIndices,genotypes)) =>
+        var va = Annotation.empty
+        reducedVA.indices.foreach({ i =>
+          va = inserters.value(i)(va,reducedVA(i))
+        })
+        svsm.addVariant(v,va,sampleIndices,genotypes) },
+      { (svsm1,svsm2) => svsm1.merge(svsm2) })
+  }
+
 }
 
-class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Serializable {
+class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String], val vaSignature:Type = TEmpty) extends Serializable {
 
   val nSamples = sampleIDs.length
   lazy val samplesIndex = sampleIDs.zipWithIndex.toMap
 
   val variants = ArrayBuffer[String]()
+  val variantsAnnotations = ArrayBuffer[Annotation]()
   lazy val variantsIndex = variants.zipWithIndex.toMap
 
   //Stores the variants -> sample mappings
@@ -83,6 +133,16 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
     this
   }
 
+  def addVariant(variant: String, variantAnnotations: Annotation, samples: Array[Int], genotypes: Array[Byte]) : SparseVariantSampleMatrix = {
+
+    variants += variant
+    variantsAnnotations += variantAnnotations
+    v_sindices += samples
+    v_genotypes += genotypes
+
+    this
+  }
+
 
   /**def addGenotype(variant: String, index: Int, genotype: Genotype) : SparseVariantSampleMatrix ={
 
@@ -104,6 +164,7 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String]) extends Seria
   def merge(that: SparseVariantSampleMatrix): SparseVariantSampleMatrix = {
 
     this.variants ++= that.variants
+    this.variantsAnnotations ++= that.variantsAnnotations
     this.v_sindices ++= that.v_sindices
     this.v_genotypes ++= that.v_genotypes
     this

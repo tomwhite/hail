@@ -427,10 +427,7 @@ object SingletonLDinTrios extends Command {
 
 
   def run(state: State, options: Options): State = {
-
-
-    val x = state.vds.metadata
-
+    
     //Read PED file
     val ped = state.sc.broadcast(Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds))
 
