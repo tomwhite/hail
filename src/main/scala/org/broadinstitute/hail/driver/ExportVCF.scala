@@ -22,8 +22,14 @@ object ExportVCF extends Command {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
 
-    @Args4jOption(name = "--export-pp", usage = "Export Hail PLs as a PP format field")
+    @Args4jOption(name = "--export-pp", usage = "Export PPs")
     var exportPP: Boolean = false
+
+    @Args4jOption(name = "--export-gp", usage = "Export GPs")
+    var exportGP: Boolean = false
+
+    @Args4jOption(name = "--export-pl", usage = "Export PLs")
+    var exportPL: Boolean = false
   }
 
   def newOptions = new Options
@@ -68,6 +74,11 @@ object ExportVCF extends Command {
     val hasSamples = vds.nSamples > 0
 
     val exportPP = options.exportPP
+    val exportGP = options.exportGP
+    val exportPL = options.exportPL
+
+    if (!exportPP && !exportGP && !exportPL)
+      warn("No probability or likelihood information is being exported. Use `--export-pp`, `--export-pl`, `--export-gp`")
 
     def header: String = {
       val sb = new StringBuilder()
@@ -75,22 +86,25 @@ object ExportVCF extends Command {
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##fileDate=${LocalDate.now}\n")
       // FIXME add Hail version
-      if (exportPP)
-        sb.append(
-          """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-            |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
-            |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-            |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-            |##FORMAT=<ID=PP,Number=G,Type=Integer,Description="Normalized, Phred-scaled posterior probabilities for genotypes as defined in the VCF specification">""".stripMargin)
-      else
-        sb.append(
-          """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-            |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
-            |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-            |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-            |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
+      sb.append(
+        """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+          |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+          |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+          |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">""".stripMargin)
       sb += '\n'
 
+      if (exportPP) {
+        sb.append( """##FORMAT=<ID=PP,Number=G,Type=Integer,Description="Normalized, Phred-scaled posterior probabilities for genotypes as defined in the VCF specification">""")
+        sb += '\n'
+      }
+      if (exportPL) {
+        sb.append( """##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""")
+        sb += '\n'
+      }
+      if (exportGP) {
+        sb.append( """##FORMAT=<ID=GP,Number=G,Type=Float,Description="Normalized, Linear-scaled posterior probabilities for genotypes as defined in the VCF specification">\n""")
+        sb += '\n'
+      }
       vds.vaSignature.fieldOption("filters")
         .foreach { f =>
           f.attrs.foreach { case (key, desc) =>
@@ -145,6 +159,9 @@ object ExportVCF extends Command {
 
     val filterQuery: Option[Querier] = vas.getOption("filters")
       .map(_ => vds.queryVA("va.filters")._2)
+
+    val priorQuery: Option[Querier] = vas.getOption("prior")
+      .map(_ => vds.queryVA("va.prior")._2)
 
     def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Genotype]) {
 
@@ -213,13 +230,19 @@ object ExportVCF extends Command {
 
       if (hasSamples) {
         sb += '\t'
+        sb.append("GT:AD:DP:GQ")
+        if (exportPL)
+          sb.append(":PL")
         if (exportPP)
-          sb.append("GT:AD:DP:GQ:PP")
-        else
-          sb.append("GT:AD:DP:GQ:PL")
+          sb.append(":PP")
+        if (exportGP)
+          sb.append(":GP")
+
+        val prior = if (priorQuery.isDefined) Option(priorQuery.flatMap(_ (a)).get.asInstanceOf[IndexedSeq[Int]].toArray) else None
+
         gs.foreach { g =>
           sb += '\t'
-          sb.append(g)
+          sb.append(g.toString(exportPL, exportPP, exportGP, prior))
         }
       }
     }

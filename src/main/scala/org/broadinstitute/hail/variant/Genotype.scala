@@ -142,7 +142,6 @@ class Genotype(private val _gt: Int,
   def renormPhredScale(a: Array[Int]): Array[Int] = a.map{_ - a.min}
 
   def pl (prior: Option[Array[Int]] = None): Option[Array[Int]] = {
-//    println("prior is " + prior)
     if (_px == null)
       None
     else if (isPL)
@@ -215,7 +214,8 @@ class Genotype(private val _gt: Int,
 
   def nNonRefAlleles: Option[Int] = Genotype.nNonRefAlleles(_gt)
 
-  override def toString: String = {
+  def toString(exportPL: Boolean = false, exportPP: Boolean = false,
+               exportGP: Boolean = false, prior: Option[Array[Int]] = None): String = {
     val b = new StringBuilder
 
     b.append(gt.map { gt =>
@@ -228,16 +228,32 @@ class Genotype(private val _gt: Int,
     b.append(dp.map(_.toString).getOrElse("."))
     b += ':'
     b.append(gq.map(_.toString).getOrElse("."))
-    b += ':'
-    if (isGP)
-      b.append(gp().map(_.mkString(",")).getOrElse("."))
-    else if (isPP)
-      b.append(pp().map(_.mkString(",")).getOrElse("."))
-    else if (isPL)
-      b.append(pl().map(_.mkString(",")).getOrElse("."))
-    else
-      throw new UnsupportedOperationException
+
+    if (exportPL) {
+      b += ':'
+      b.append(pl(prior).map(_.mkString(",")).getOrElse("."))
+    }
+    if (exportPP) {
+      b += ':'
+      b.append(pp(prior).map(_.mkString(",")).getOrElse("."))
+    }
+    if (exportGP) {
+      b += ':'
+      b.append(gp(prior).map(_.map(_.formatted("%.4f"))).map(_.mkString(",")).getOrElse("."))
+    }
+
     b.result()
+  }
+
+  override def toString: String = {
+    if (isGP)
+      toString(exportGP = true)
+    else if (isPP)
+      toString(exportPP = true)
+    else if (isPL)
+      toString(exportPL = true)
+    else
+      throw new UnsupportedOperationException("Not one of GP, PL, or PP")
   }
 
   def pAB(theta: Double = 0.5): Option[Double] = ad.map { case Array(refDepth, altDepth) =>
@@ -364,11 +380,11 @@ object Genotype {
 
   def flagSetHasGP(flags: Int): Int = flags | flagHasGPBit
 
-  def flagUnsetHasGP(flags: Int): Int = flags ^ flagHasGPBit
+  def flagUnsetHasGP(flags: Int): Int = if (flagHasGP(flags)) flags ^ flagHasGPBit else flags
 
   def flagSetHasPP(flags: Int): Int = flags | flagHasPPBit
 
-  def flagUnsetHasPP(flags: Int): Int = flags ^ flagHasPPBit
+  def flagUnsetHasPP(flags: Int): Int = if (flagHasPP(flags)) flags ^ flagHasPPBit else flags
 
   def gqFromPX(px: Array[Int]): Int = {
     var m = 99

@@ -40,7 +40,8 @@ object ExportGEN extends Command {
         "ID_1 ID_2 missing" :: "0 0 0" :: vds.sampleIds.map(s => s"$s $s 0").toList)
     }
 
-    def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype], rsidQuery: Querier, varidQuery: Querier) {
+    def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype],
+                  rsidQuery: Querier, varidQuery: Querier, priorQuery: Option[Querier]) {
       sb.append(v.contig)
       sb += ' '
       sb.append(varidQuery(va).getOrElse(v.toString))
@@ -53,8 +54,10 @@ object ExportGEN extends Command {
       sb += ' '
       sb.append(v.alt)
 
+      val prior = if (priorQuery.isDefined) Option(priorQuery.get(va).get.asInstanceOf[IndexedSeq[Int]].toArray) else None
+
       for (gt <- gs) {
-        val dosages = gt.gp() match {
+        val dosages = gt.gp(prior) match {
           case Some(x) => x
           case None => Array(0.0,0.0,0.0)
         }
@@ -88,6 +91,8 @@ object ExportGEN extends Command {
         case None => a => None
       }
 
+      val priorQuery = if (vds.vaSignature.getOption("prior").isDefined) Option(vds.queryVA("va.prior")._2) else None
+
       val kvRDD = vds.rdd.map { case (v, a, gs) =>
         (v, (a, gs.toGenotypeStream(v, compress = false)))
       }
@@ -98,7 +103,7 @@ object ExportGEN extends Command {
           val sb = new StringBuilder
           it.map { case (v, (va, gs)) =>
             sb.clear()
-            appendRow(sb, v, va, gs, rsidQuery, varidQuery)
+            appendRow(sb, v, va, gs, rsidQuery, varidQuery, priorQuery)
             sb.result()
           }
         }.writeTable(options.output + ".gen", None, deleteTmpFiles = true)

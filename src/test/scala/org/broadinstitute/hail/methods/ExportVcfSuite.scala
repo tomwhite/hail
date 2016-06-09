@@ -22,7 +22,7 @@ class ExportVcfSuite extends SparkSuite {
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State(sc, sqlContext, vdsOrig)
 
-    ExportVCF.run(stateOrig, Array("-o", outFile))
+    ExportVCF.run(stateOrig, Array("-o", outFile, "--export-pl"))
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
 
@@ -37,7 +37,7 @@ class ExportVcfSuite extends SparkSuite {
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State(sc, sqlContext, vdsOrig)
 
-    ExportVCF.run(stateOrig, Array("-o", outFile))
+    ExportVCF.run(stateOrig, Array("-o", outFile, "--export-pl"))
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
 
@@ -49,7 +49,7 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsNewMissingInfo = vdsNew.mapAnnotations((v, va, gs) => inserter(va, toAdd))
 
-    ExportVCF.run(stateOrig.copy(vds = vdsNewMissingInfo), Array("-o", outFile2))
+    ExportVCF.run(stateOrig.copy(vds = vdsNewMissingInfo), Array("-o", outFile2, "--export-pl"))
 
     assert(LoadVCF(sc, outFile2).eraseSplit.same(vdsNewMissingInfo.eraseSplit))
   }
@@ -61,7 +61,7 @@ class ExportVcfSuite extends SparkSuite {
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State(sc, sqlContext, vdsOrig)
 
-    ExportVCF.run(stateOrig, Array("-o", outFile))
+    ExportVCF.run(stateOrig, Array("-o", outFile, "--export-pl"))
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
     val stateNew = State(sc, sqlContext, vdsNew)
@@ -96,9 +96,9 @@ class ExportVcfSuite extends SparkSuite {
     val out2 = tmpDir.createTempFile("foo2", ".vcf")
     val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
       hadoopDelete("/tmp/foo.vcf", sc.hadoopConfiguration, recursive = true)
-      ExportVCF.run(s.copy(vds = vsm), Array("-o", out))
+      ExportVCF.run(s.copy(vds = vsm), Array("-o", out, "--export-pl"))
       val vsm2 = ImportVCF.run(s, Array(out)).vds
-      ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2))
+      ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2, "--export-pl"))
       val vsm3 = ImportVCF.run(s, Array(out2)).vds
       vsm2.same(vsm3)
     }
@@ -108,7 +108,7 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testPPs() {
     var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.PPs.vcf", "--pp-as-pl"))
+    s = ImportVCF.run(s, Array("src/test/resources/sample.PPs.vcf"))
     val out = tmpDir.createTempFile("exportPPs", ".vcf")
     ExportVCF.run(s, Array("-o", out, "--export-pp"))
 

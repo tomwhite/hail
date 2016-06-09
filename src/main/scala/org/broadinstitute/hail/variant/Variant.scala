@@ -194,10 +194,7 @@ case class Variant(contig: String,
   else
     altAlleles(i - 1).alt
 
-  def nGenotypes = {
-    println(Variant.nGenotypes(nAlleles))
-    Variant.nGenotypes(nAlleles)
-  }
+  def nGenotypes = Variant.nGenotypes(nAlleles)
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/

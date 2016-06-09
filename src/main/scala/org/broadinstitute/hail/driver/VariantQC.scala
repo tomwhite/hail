@@ -64,7 +64,7 @@ class VariantQCCombiner extends Serializable {
 
   // FIXME per-genotype
 
-  def merge(g: Genotype): VariantQCCombiner = {
+  def merge(g: Genotype, prior: Option[Array[Int]] = None): VariantQCCombiner = {
     (g.gt: @unchecked) match {
       case Some(0) =>
         nHomRef += 1
@@ -85,8 +85,7 @@ class VariantQCCombiner extends Serializable {
       }
     }
 
-    //FIXME: prior incorporated
-    g.gp().foreach{ a =>
+    g.gp(prior).foreach{ a =>
       e += a(1) + 2*a(2)
       f += a(1) + 4*a(2)
       N += a.sum
@@ -248,10 +247,12 @@ object VariantQC extends Command {
 
   def description = "Compute per-variant QC metrics"
 
-  def results(vds: VariantDataset): RDD[(Variant, VariantQCCombiner)] =
-    vds
-      .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(g),
-        (comb1, comb2) => comb1.merge(comb2))
+  def results(vds: VariantDataset): RDD[(Variant, VariantQCCombiner)] = {
+    val priorQuery = if (vds.vaSignature.getOption("prior").isDefined) Option(vds.queryVA("va.prior")._2) else None
+    vds.aggregateByVariantWithAll(new VariantQCCombiner)(
+      (comb, v, va, s, sa, g) => comb.merge(g, if (priorQuery.isDefined) Option(priorQuery.get(va).get.asInstanceOf[IndexedSeq[Int]].toArray) else None),
+      (comb1, comb2) => comb1.merge(comb2))
+  }
 
   def supportsMultiallelic = false
 

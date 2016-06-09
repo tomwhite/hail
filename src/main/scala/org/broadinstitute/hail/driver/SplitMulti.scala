@@ -83,14 +83,14 @@ object SplitMulti extends Command {
     for (g <- it) {
 
       val gadsum = g.ad.map(gadx => (gadx, gadx.sum))
-      val isDosage = Genotype.flagHasGP(g.flags)
+      val isGP = Genotype.flagHasGP(g.flags)
 
       // svj corresponds to the ith allele of v
       for (((svj, i), j) <- splitVariants.iterator.zipWithIndex) {
         val gb = splitGenotypeBuilders(j)
         gb.clear()
 
-        if (!isDosage) {
+        if (!isGP) {
           g.gt.foreach { ggtx =>
             val gtx = splitGT(ggtx, i)
             gb.setGT(gtx)
@@ -123,22 +123,22 @@ object SplitMulti extends Command {
             }
           }
         } else {
-          val newdx = g.gp().map { case gdx =>
-            val dx = gdx.iterator.zipWithIndex
+          val newgp = g.gp().map { case gpx =>
+            val gp = gpx.iterator.zipWithIndex
               .map { case (d, k) => (splitGT(k, i), d) }
               .reduceByKeyToArray(3, 0.0)(_ + _)
 
-            gb.setGP(dx)
-            dx
+            gb.setGP(gp)
+            gp
           }
 
-          val newgt = newdx match {
-            case Some(x) => {
-              val maxDosage = x.max
-              if (maxDosage < 0.5 && x.count{d: Double => math.abs(d - maxDosage) <= 3e-4 } != 1) //first comparison for speed to not evaluate count if prob > 0.5
+          val newgt = newgp match {
+            case Some(gp) => {
+              val maxgp = gp.max
+              if (maxgp < 0.5 && gp.count{d: Double => math.abs(d - maxgp) <= 3e-4 } != 1) //first comparison for speed to not evaluate count if prob > 0.5
                 -1
               else
-                x.indexOf(maxDosage)
+                gp.indexOf(maxgp)
             }
             case None => -1
           }

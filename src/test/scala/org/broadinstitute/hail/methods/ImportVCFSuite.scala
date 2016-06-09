@@ -3,6 +3,7 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.SparkException
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {
@@ -109,10 +110,11 @@ class ImportVCFSuite extends SparkSuite {
 
   @Test def testPPs() {
     var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.PPs.vcf", "--pp-as-pl"))
+    s = ImportVCF.run(s, Array("src/test/resources/sample.PPs.vcf"))
+    var q = s.copy(vds = s.vds.copy(rdd = s.vds.rdd.map{case (v, va, gs) => (v, va, gs.map{case g => g.copy(flags = Genotype.flagUnsetHasPP(g.flags))})}))
 
     val s2 = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
 
-    assert(s.vds.same(s2.vds))
+    assert(q.vds.same(s2.vds))
   }
 }

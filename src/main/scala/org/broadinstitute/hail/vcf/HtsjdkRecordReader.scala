@@ -28,12 +28,12 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
   import HtsjdkRecordReader._
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    vc: VariantContext,
-    infoSignature: Option[TStruct],
-    storeGQ: Boolean,
-    skipGenotypes: Boolean,
-    compress: Boolean,
-    ppAsPL: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
+                 vc: VariantContext,
+                 infoSignature: Option[TStruct],
+                 storeGQ: Boolean,
+                 skipGenotypes: Boolean,
+                 compress: Boolean,
+                 storePL: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filters: Set[String] = {
@@ -95,21 +95,31 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       var filter = false
       gb.clear()
 
-      var pl = if (ppAsPL) {
-        val str = g.getAnyAttribute("PP")
-        if (str != null)
-          str.asInstanceOf[String].split(",").map(_.toInt)
-        else null
-      }
-      else g.getPL
+      val hasPL = g.hasPL()
+      val hasPP = if (g.getAnyAttribute("PP") != null) true else false
 
-      if (g.hasPL) {
-        val minPL = pl.min
-        if (minPL != 0) {
-          pl = pl.clone()
+      var px =
+        if (hasPP && !storePL)
+          g.getAnyAttribute("PP").asInstanceOf[String].split(",").map(_.toInt)
+        else if (hasPL)
+          g.getPL()
+        else
+          null
+//      var px = if (storePL) {
+//        val str = g.getAnyAttribute("PP")
+//        if (str != null)
+//          str.asInstanceOf[String].split(",").map(_.toInt)
+//        else null
+//      }
+//      else g.getPL
+
+      if (hasPL || hasPP) {
+        val minPX = px.min
+        if (minPX != 0) {
+          px = px.clone()
           var i = 0
-          while (i < pl.length) {
-            pl(i) -= minPL
+          while (i < px.length) {
+            px(i) -= minPX
             i += 1
           }
         }
@@ -126,8 +136,8 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         else
           Genotype.gtIndex(j, i)
 
-        if (g.hasPL && pl(gt) != 0) {
-          reportAcc += VCFReport.GTPLMismatch
+        if ((hasPL || hasPP) && px(gt) != 0) {
+          reportAcc += VCFReport.GTPXMismatch
           filter = true
         }
 
@@ -152,23 +162,25 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         gb.setDP(dp)
       }
 
-      if (pl != null)
-        gb.setPX(pl)
+      if (hasPP && !storePL)
+        gb.setPP(px)
+      else if (hasPL)
+        gb.setPL(px)
 
       if (g.hasGQ) {
         val gq = g.getGQ
         gb.setGQ(gq)
 
         if (!storeGQ) {
-          if (pl != null) {
-            val gqFromPL = Genotype.gqFromPX(pl)
+          if (px != null) {
+            val gqFromPX = Genotype.gqFromPX(px)
 
-            if (!filter && gq != gqFromPL) {
-              reportAcc += VCFReport.GQPLMismatch
+            if (!filter && gq != gqFromPX) {
+              reportAcc += VCFReport.GQPXMismatch
               filter = true
             }
           } else if (!filter) {
-            reportAcc += VCFReport.GQMissingPL
+            reportAcc += VCFReport.GQMissingPX
             filter = true
           }
         }

@@ -14,12 +14,12 @@ import scala.collection.mutable
 import scala.io.Source
 
 object VCFReport {
-  val GTPLMismatch = 1
+  val GTPXMismatch = 1
   val ADDPMismatch = 2
   val ODMissingAD = 3
   val ADODDPPMismatch = 4
-  val GQPLMismatch = 5
-  val GQMissingPL = 6
+  val GQPXMismatch = 5
+  val GQMissingPX = 6
   val RefNonACGTN = 7
   val Symbolic = 8
 
@@ -31,12 +31,12 @@ object VCFReport {
 
   def warningMessage(id: Int, count: Int): String = {
     val desc = id match {
-      case GTPLMismatch => "PL(GT) != 0"
+      case GTPXMismatch => "PX(GT) != 0"
       case ADDPMismatch => "sum(AD) > DP"
       case ODMissingAD => "OD present but AD missing"
       case ADODDPPMismatch => "DP != sum(AD) + OD"
-      case GQPLMismatch => "GQ != difference of two smallest PL entries"
-      case GQMissingPL => "GQ present but PL missing"
+      case GQPXMismatch => "GQ != difference of two smallest PX entries"
+      case GQMissingPX => "GQ present but PX missing"
       case RefNonACGTN => "REF contains non-ACGT"
       case Symbolic => "Variant is symbolic"
     }
@@ -142,13 +142,13 @@ object LoadVCF {
   }
 
   def apply(sc: SparkContext,
-    file1: String,
-    files: Array[String] = null, // FIXME hack
-    storeGQ: Boolean = false,
-    compress: Boolean = true,
-    nPartitions: Option[Int] = None,
-    skipGenotypes: Boolean = false,
-    ppAsPL: Boolean = false): VariantDataset = {
+            file1: String,
+            files: Array[String] = null, // FIXME hack
+            storeGQ: Boolean = false,
+            compress: Boolean = true,
+            nPartitions: Option[Int] = None,
+            skipGenotypes: Boolean = false,
+            storePL: Boolean = false): VariantDataset = {
 
     val hConf = sc.hadoopConfiguration
     val headerLines = readFile(file1, hConf) { s =>
@@ -236,7 +236,7 @@ object LoadVCF {
                   None
                 } else
                   Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value),
-                    storeGQ, skipGenotypes, compress, ppAsPL))
+                    storeGQ, skipGenotypes, compress, storePL))
               }
             }
           }
