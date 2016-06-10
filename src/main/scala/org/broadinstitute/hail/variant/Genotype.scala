@@ -53,6 +53,8 @@ class Genotype(private val _gt: Int,
                private val _px: Array[Int],
                private val _flags: Int) extends Serializable {
 
+  import Genotype._
+
   require(_gt >= -1, s"invalid _gt value: ${_gt}")
   require(_dp >= -1, s"invalid _dp value: ${_dp}")
 
@@ -61,10 +63,11 @@ class Genotype(private val _gt: Int,
   def isPP = (flags & Genotype.flagHasPPBit) != 0
   def isPL = !isGP && !isPP
 
-  def check(v: Variant) {
-    assert(gt.forall(i => i >= 0 && i < v.nGenotypes))
-    assert(ad.forall(a => a.length == v.nAlleles))
-    assert(px.forall(a => a.length == v.nGenotypes))
+  def check(nAlleles: Int) {
+    val nGenotypes = triangle(nAlleles)
+    assert(gt.forall(i => i >= 0 && i < nGenotypes))
+    assert(ad.forall(a => a.length == nAlleles))
+    assert(px.forall(a => a.length == nGenotypes))
   }
 
   def copy(gt: Option[Int] = this.gt,
@@ -127,20 +130,6 @@ class Genotype(private val _gt: Int,
 
   def px: Option[Array[Int]] = if (_px == null) None else Option(_px)
 
-  def uniformPrior = Option(new Array[Int](_px.length))
-
-  def linearToPhredScale(a: Array[Int]): Array[Int] = {
-    val x = a.map(phredConversionTable)
-    x.map{d => (d - x.min + 0.5).toInt}
-  }
-
-  def phredToLinearScale(a: Array[Int]): Array[Double] = {
-    val transformedProbs = a.map{case i => math.pow(10, i / -10.0)}
-    a.map{case i => math.pow(10, i / -10.0) / transformedProbs.sum}
-  }
-
-  def renormPhredScale(a: Array[Int]): Array[Int] = a.map{_ - a.min}
-
   def pl (prior: Option[Array[Int]] = None): Option[Array[Int]] = {
     if (_px == null)
       None
@@ -163,12 +152,12 @@ class Genotype(private val _gt: Int,
       None
     else if (isPP)
       Option(_px)
+    else if (isGP)
+      Option(renormPhredScale(linearToPhredScale(_px)))
     else if (prior.isDefined) {
       require(prior.get.length == _px.length)
       if (isPL)
         Option(renormPhredScale(_px.zip(prior.get).map { case (i1, i2) => i1 + i2 }))
-      else if (isGP)
-        Option(renormPhredScale(linearToPhredScale(_px)))
       else
         throw new UnsupportedOperationException
     } else
@@ -402,6 +391,17 @@ object Genotype {
     m2
   }
 
+  def linearToPhredScale(a: Array[Int]): Array[Int] = {
+    val x = a.map(phredConversionTable)
+    x.map{d => (d - x.min + 0.5).toInt}
+  }
+
+  def phredToLinearScale(a: Array[Int]): Array[Double] = {
+    val transformedProbs = a.map{case i => math.pow(10, i / -10.0)}
+    a.map{case i => math.pow(10, i / -10.0) / transformedProbs.sum}
+  }
+
+  def renormPhredScale(a: Array[Int]): Array[Int] = a.map{_ - a.min}
 
   def isHomRef(gt: Int): Boolean = gt == 0
 
@@ -577,9 +577,32 @@ object Genotype {
     new Genotype(gt, ad, dp, gq, px, flags)
   }
 
-  def genGP(v: Variant): Gen[Genotype] = {
+  def genPhredScaledPXGT(nAlleles: Int): Gen[(Option[Int], Option[Array[Int]])] = {
+    val nGenotypes = triangle(nAlleles)
+    val m = Int.MaxValue / (nAlleles + 1)
+    for (gt: Option[Int] <- Gen.option(Gen.choose(0, nGenotypes - 1));
+         px <- Gen.frequency((5,Gen.option(Gen.buildableOfN[Array[Int], Int](nGenotypes,
+           Gen.choose(0, m)))),(5,Gen.option(Gen.buildableOfN[Array[Int], Int](nGenotypes,
+           Gen.choose(0, 100)))))) yield {
+      gt.foreach { gtx =>
+        px.foreach { pxa => pxa(gtx) = 0 }
+      }
 
-    for (gp <- Gen.option(Gen.buildableOfN[Array[Double], Double](v.nGenotypes, Gen.choose(0.0, 1.0)))) yield {
+      px.foreach { pxa =>
+        val m = pxa.min
+        var i = 0
+        while (i < pxa.length) {
+          pxa(i) -= m
+          i += 1
+        }
+      }
+      (gt, px)
+    }
+  }
+
+  def genGP(nAlleles: Int): Gen[Genotype] = {
+    val nGenotypes = triangle(nAlleles)
+    for (gp <- Gen.option(Gen.buildableOfN[Array[Double], Double](nGenotypes, Gen.choose(0.0, 1.0)))) yield {
 
       val gpInt = gp.map{ gpa => gpa.map{case d: Double => ((d / gpa.sum) * 32768.0).round.toInt}}
       val gt = gpInt.map{gpa => if (gpa.count(_ == gpa.max) != 1) -1 else gpa.indexOf(gpa.max)}
@@ -587,55 +610,87 @@ object Genotype {
       var flags = 0
       flags = {
         if (gpInt.isDefined) {
-          flagSetHasPX(flags)
-          flagSetHasGP(flags)
+          flags = flagSetHasPX(flags)
+          flags = flagSetHasGP(flags)
+          flags
         }
         else
           flags
       }
 
       val g = Genotype(gt = gt, px = gpInt, flags = flags)
-      g.check(v)
+      g.check(nAlleles)
       g
     }
   }
 
-  def gen(v: Variant): Gen[Genotype] = {
-    val m = Int.MaxValue / (v.nAlleles + 1)
-    for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
+  def genPP(nAlleles: Int): Gen[Genotype] = {
+    for ((gt, pp) <- genPhredScaledPXGT(nAlleles)) yield {
+
+      var flags = 0
+      flags = {
+        if (pp.isDefined) {
+          flags = flagSetHasPX(flags)
+          flags = flagSetHasPP(flags)
+          flags
+        } else
+          flags
+      }
+
+      val g = Genotype(gt = gt, px = pp, flags = flags)
+      g.check(nAlleles)
+      g
+    }
+  }
+
+  def genPL(nAlleles: Int): Gen[Genotype] = {
+    for ((gt, pl) <- genPhredScaledPXGT(nAlleles)) yield {
+
+      var flags = 0
+      flags = {
+        if (pl.isDefined) {
+          flags = flagSetHasPX(flags)
+          flags
+        } else
+          flags
+      }
+
+      val g = Genotype(gt = gt, px = pl, flags = flags)
+      g.check(nAlleles)
+      g
+    }
+  }
+
+  def gen(nAlleles: Int): Gen[Genotype] = {
+    val nGenotypes = triangle(nAlleles)
+    val m = Int.MaxValue / (nAlleles + 1)
+    for ((gt, px) <- genPhredScaledPXGT(nAlleles);
+      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](nAlleles,
         Gen.choose(0, m)));
       dp <- Gen.option(Gen.choose(0, m));
-      gq <- Gen.option(Gen.choose(0, 10000));
-      pl <- Gen.frequency((5,Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-        Gen.choose(0, m)))),(5,Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-        Gen.choose(0, 100)))))) yield {
-      gt.foreach { gtx =>
-        pl.foreach { pla => pla(gtx) = 0 }
-      }
-      pl.foreach { pla =>
-        val m = pla.min
-        var i = 0
-        while (i < pla.length) {
-          pla(i) -= m
-          i += 1
-        }
-      }
-      val g = Genotype(gt, ad,
-        dp.map(_ + ad.map(_.sum).getOrElse(0)), gq, pl) //because PLs don't need to set any additional bits
-      g.check(v)
+      gq <- Gen.option(Gen.choose(0, 10000))) yield {
+
+      val g = Genotype(gt, ad, dp.map(_ + ad.map(_.sum).getOrElse(0)), gq, px)
+      g.check(nAlleles)
       g
     }
   }
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- Gen.frequency((5, gen(v)),(5, genGP(v))))
+      g <- Gen.frequency((5, gen(v.nAlleles)),(5, genGP(v.nAlleles))))
       yield (v, g)
 
+  def genAnyGenotypeType(nAlleles: Int): Gen[Genotype] = Gen.frequency(
+    (5, gen(nAlleles)),
+    (5, genPL(nAlleles)),
+    (5, genPP(nAlleles)),
+    (5, genGP(nAlleles))
+  )
+
   def genArb: Gen[Genotype] =
-    for (v <- Variant.gen;
-         g <- gen(v))
+    for (nAlleles <- Gen.choose(2, 10);
+         g <- genAnyGenotypeType(nAlleles))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
@@ -740,7 +795,6 @@ class GenotypeBuilder(nAlleles: Int) {
     g.dp.foreach(setDP)
     g.gq.foreach(setGQ)
 
-    //FIXME!!!
     if (g.isPL)
       g.px.foreach(setPL)
     else if (g.isPP)

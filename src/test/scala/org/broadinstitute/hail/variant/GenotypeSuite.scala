@@ -46,6 +46,58 @@ object GenotypeSuite {
       Genotype.gtPairSqrt(i) == p &&
       Genotype.gtPairRecursive(i) == p
     }
+
+    property("plEqualsPPwithUnifPrior") = forAll { g: Genotype =>
+      if (g.px.isDefined) {
+        if (g.isPL) {
+          val ppTransformed = g.pp(Option(uniformPriorPhred(g.px.get.length))).get
+          val res =  ppTransformed sameElements g.pl().get
+          if (!res)
+            println(s"g.pp=${ppTransformed.mkString(",")} g.pl=${g.pl().get.mkString(",")}")
+          res
+        }
+
+        else if (g.isPP) {
+          val plTransformed = g.pl(Option(uniformPriorPhred(g.px.get.length))).get
+          val res = plTransformed sameElements g.pp().get
+          if (!res)
+            println(s"g.pl=${plTransformed.mkString(",")} g.pp=${g.pp().get.mkString(",")}")
+          res
+        }
+        else
+          true // not testing GP here
+      }
+      else
+        g.pl() == g.pp()
+    }
+
+    property("gpEqualsPP") = forAll { g: Genotype =>
+      if (g.px.isDefined) {
+        if (g.isPP) {
+          val ppTransformed = Genotype.phredToLinearScale(g.pp().get)
+          val ppTransformed2 = Genotype.phredToLinearScale(g.pp(Option(uniformPriorPhred(g.px.get.length))).get)
+          val res = (ppTransformed sameElements g.gp().get) && (ppTransformed2 sameElements g.gp().get)
+          if (!res)
+            println(s"g.pp=${ppTransformed.mkString(",")} g.gp=${g.gp().get.mkString(",")}")
+          res
+        } else if (g.isGP) {
+          val gpTransformed = Genotype.linearToPhredScale(g.px.get)
+          val res = gpTransformed sameElements g.pp().get
+          if (!res)
+            println(s"g.gp=${gpTransformed.mkString(",")} g.pp=${g.pp().get.mkString(",")}")
+          res
+        } else
+          true // not testing PL here
+      }
+      else
+        g.gp() == g.pp()
+    }
+
+    //property("linearToPhredEqual")
+//
+//    val compGen = for ()
+//    property("testNonUniformPrior") = forAll
+
   }
 
 }
