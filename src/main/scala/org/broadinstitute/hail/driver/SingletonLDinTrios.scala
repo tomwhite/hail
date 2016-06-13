@@ -11,6 +11,7 @@ import org.broadinstitute.hail.utils.{SparseVariantSampleMatrix, SparseVariantSa
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr.BaseType
 import org.broadinstitute.hail.variant.GenotypeType._
 
 import scala.collection.mutable
@@ -50,6 +51,12 @@ object SingletonLDinTrios extends Command {
     @Args4jOption(required = false, name = "-noem", aliases = Array("--no_EM"), usage = "Do not run haplotype analysis using EM algorithm")
     var noem: Boolean = false
 
+    @Args4jOption(required = false, name = "-vaStrat", aliases = Array("--va_stratification"), usage = "Stratify results based on variant annotations. Comma-separated list of annotations.")
+    var vaStrat: String = ""
+
+    @Args4jOption(required = false, name = "-saStrat", aliases = Array("--sa_stratification"), usage = "Stratify results based on sample annotations. Comma-separated list of annotations.")
+    var saStrat: String = ""
+
   }
   def newOptions = new Options
 
@@ -60,12 +67,47 @@ object SingletonLDinTrios extends Command {
     **/
 
    object VariantPairsCounter{
-    def getHeaderString() : String = {
-      "AC1\tAC2\tsameTrioHap\tdiffTrioHap\tcoInExAC\tnotCoInExAC\tsameHapTrioAndExAC\tdiffHapTrioAndExAC\tsameHapExACEM\tdiffHapExACEM\tsameHapTrioAndExACEM\tdiffHapTrioAndExACEM"
+    def getHeaderString(coseg: Boolean, em : Boolean, variantAnnotations: Array[String], sampleAnnotations: Array[String]) : String = {
+
+      variantAnnotations.foldLeft("AC1\tAC2")({(str,ann) => str + "\t" + ann + "1\t" + ann + "2"}) +
+      sampleAnnotations.foldLeft("")({(str,ann) => str + "\t" + ann}) +
+      "\tsameTrioHap\tdiffTrioHap" +
+        (if(coseg) "\tcoInExAC\tnotCoInExAC\tsameHapTrioAndExAC\tdiffHapTrioAndExAC" else "") +
+        (if(em) "\tsameHapExACEM\tdiffHapExACEM\tsameHapTrioAndExACEM\tdiffHapTrioAndExACEM" else "" )
     }
   }
 
-  class VariantPairsCounter(val trios: SparseVariantSampleMatrix, val ped : Pedigree) extends Logging{
+  class VariantPairsCounter(val trios: SparseVariantSampleMatrix, val ped : Pedigree, val vaStrat: Array[String] = Array[String](), val saStrat: Array[String] = Array[String]()) extends Logging{
+
+    //Small class to cache variant stats
+    object VariantStats{
+      def apply(v1: String, v2: String, AC1: Int, AC2: Int, ann1: String, ann2: String) : VariantStats = {
+        if(v1<v2){
+          //Note that either both ann1 and ann2 should be emtpy or non-empty
+          new VariantStats(v1,v2,AC1,AC2,if(ann1.isEmpty() || ann2.isEmpty()) "" else ann1+"\t"+ann2)
+        }
+        new VariantStats(v1,v2,AC2,AC1, if(ann1.isEmpty() || ann2.isEmpty()) "" else ann2+"\t"+ann1)
+      }
+    }
+
+    case class VariantStats private(val v1: String, val v2: String, val AC1: Int, val AC2: Int, val variantAnnotations: String)  {
+      var sameExacHap : Option[Boolean] = None
+      var sameEMHap: Option[Boolean] = None
+
+      def setEMHap(probSameHap: Option[Double]) = {
+        probSameHap match {
+          case Some(prob) => sameEMHap = Some(prob > 0.5)
+          case None =>
+        }
+      }
+
+      def getKey(sampleAnnotations: String) : (Int, Int, String) = {
+
+        if(variantAnnotations.isEmpty){return (AC1,AC2,sampleAnnotations)}
+
+        return (AC1,AC2, variantAnnotations + (if(!variantAnnotations.isEmpty) "\t" else "")  + sampleAnnotations)
+      }
+    }
 
     /** Stores the following results:
       * #sites on the same trio haplotype,
@@ -79,7 +121,7 @@ object SingletonLDinTrios extends Command {
       * #Sites on the same haplotype in ExAC based on EM and on the same trio haplotype
       * #Sites on different haplotype in ExAC based on EM and on different trio haplotype
       * */
-    class VPCResult {
+    class VPCResult(val coseg :Boolean = true, val em : Boolean = true) {
 
       //Numbers from trio inheritance
       var nSameTrioHap = 0
@@ -97,10 +139,19 @@ object SingletonLDinTrios extends Command {
       var nSameHapExACandSameHapTrio = 0
       var nDiffHapExACandDiffHapTrio = 0
 
-      def this(sameTrioHap : Boolean){
-        this()
+      def this(sameTrioHap : Boolean, variantStats: VariantStats, coseg :Boolean = true, em : Boolean = true){
+        this(coseg,em)
         nSameTrioHap = if(sameTrioHap) 1 else 0
         nDiffTrioHap = if(sameTrioHap) 0 else 1
+
+        variantStats.sameExacHap match {
+          case Some(sameHap) => coSegExAC(sameHap,sameTrioHap)
+          case None =>
+        }
+        variantStats.sameEMHap match {
+          case Some(sameHap) => sameEMHap(sameHap,sameTrioHap)
+          case None =>
+        }
       }
 
       def coSegExAC(coseg : Boolean, sameTrioHap : Boolean) ={
@@ -117,7 +168,7 @@ object SingletonLDinTrios extends Command {
         }
       }
 
-      def sameHapExAC(sameHap : Boolean, sameTrioHap : Boolean) ={
+      def sameEMHap(sameHap : Boolean, sameTrioHap : Boolean) ={
         if(sameHap){
           nSameHapExAC += 1
           if(sameTrioHap){
@@ -150,43 +201,63 @@ object SingletonLDinTrios extends Command {
       }
 
       override def toString() : String = {
-        (("%d\t" * 9) + "%d").format(
-         nSameTrioHap,
-         nDiffTrioHap,
-         nCoSegExAC,
-         nNonCoSegExac,
-         nCoSegExACandSameTrioHap,
-         nNonCoSegExACandDiffTrioHap,
-         nSameHapExAC,
-         nDiffHapExac,
-         nSameHapExACandSameHapTrio,
-         nDiffHapExACandDiffHapTrio
-        )
+        "%d\t%d".format(nSameTrioHap, nDiffTrioHap) +
+          (if(coseg) "\t%d\t%d\t%d\t%d".format(nCoSegExAC, nNonCoSegExac, nCoSegExACandSameTrioHap, nNonCoSegExACandDiffTrioHap) else "" ) +
+          (if(em) "\t%d\t%d\t%d\t%d".format(nSameHapExAC, nDiffHapExac, nSameHapExACandSameHapTrio, nDiffHapExACandDiffHapTrio) else "")
       }
 
     }
 
-    var res = mutable.Map[(Int, Int), VPCResult]()
+    var res = mutable.Map[(Int, Int, String), VPCResult]()
+
+    //Get sample annotation queriers
+    private var saQueriers = Array.ofDim[(BaseType,Querier)](saStrat.size)
+    saStrat.indices.foreach({
+      i => saQueriers(i) = trios.querySA(saStrat(i))
+    })
 
     val variantPairs = (for(trio <- ped.completeTrios) yield{
-      getHetPhasedVariantPairs(trio.kid,trio.dad,trio.mom) ++ getHetPhasedVariantPairs(trio.kid,trio.mom,trio.dad)
+
+      //Get the sample annotations for the kid as a string
+      //For now rely on toString(). Later might need binning by type
+      var kidSA = saQueriers.map({ querier =>
+        trios.getSampleAnnotation(trio.kid,querier._2).getOrElse("NA").toString()
+      }).mkString("\t")
+
+      getHetPhasedVariantPairs(trio.kid,trio.dad,trio.mom,kidSA) ++ getHetPhasedVariantPairs(trio.kid,trio.mom,trio.dad,kidSA)
     }).flatten.filter(_._3.isDefined)
 
 
 
     //Public functions
     override def toString() : String = {
-      res.map({case ((ac1,ac2),result) =>
-      ("%d\t%d\t").format(ac1,ac2) + result.toString()}).mkString("\r")
+      //Check if any stratification
+      if(saStrat.isEmpty && vaStrat.isEmpty){
+        res.map({case ((ac1,ac2,annotations),result) =>
+          ("%d\t%d\t").format(ac1,ac2) + result.toString()
+        }).mkString("\r")
+      }else{
+        res.map({case ((ac1,ac2,annotations),result) =>
+          ("%d\t%d\t%s\t").format(ac1,ac2,annotations) + result.toString()
+        }).mkString("\r")
+      }
     }
 
     def toString(group_name : String) : String = {
-      res.map({case ((ac1,ac2),result) =>
-        ("%s\t%d\t%d\t").format(group_name,ac1,ac2) + result.toString()}).mkString("\n")
+      //Check if any stratification
+      if(saStrat.isEmpty && vaStrat.isEmpty) {
+        res.map({ case ((ac1, ac2, annotations), result) =>
+          ("%s\t%d\t%d\t").format(group_name, ac1, ac2) + result.toString()
+        }).mkString("\n")
+      }else{
+        res.map({ case ((ac1, ac2, annotations), result) =>
+          ("%s\t%d\t%d\t%s\t").format(group_name, ac1, ac2, annotations) + result.toString()
+        }).mkString("\n")
+      }
     }
 
     def getHetSites() : Set[String] = {
-      variantPairs.flatMap({case (v1,v2,phase) => List(v1,v2)}).toSet
+      variantPairs.flatMap({case (v1,v2,phase, kidSA) => List(v1,v2)}).toSet
     }
 
     def this(trios: SparseVariantSampleMatrix, exac : SparseVariantSampleMatrix , ped : Pedigree, coseg: Boolean = false, em: Boolean = true) = {
@@ -198,35 +269,65 @@ object SingletonLDinTrios extends Command {
       computeExACphase(exac,coseg,em)
     }
 
+
     //Private functions
     private def computeExACphase(exac : SparseVariantSampleMatrix, coseg: Boolean, em: Boolean) = {
+
+      //Get annotation queriers
+      var vaQueriers = Array.ofDim[(BaseType,Querier)](vaStrat.size)
+      vaStrat.indices.foreach({ i =>
+        vaQueriers(i) = trios.queryVA(vaStrat(i))
+      })
+
+      def computeVariantStats(v1: String, v2: String) : VariantStats = {
+
+        //Get variants annotation as String
+        //For now rely on toString() but might be good to have type-specific functions
+        val v1Ann = vaQueriers.map({querier =>
+          trios.getVariantAnnotation(v1,querier._2).getOrElse("NA").toString()
+        }).mkString("\t")
+        val v2Ann = vaQueriers.map({querier =>
+          trios.getVariantAnnotation(v2,querier._2).getOrElse("NA").toString()
+        }).mkString("\t")
+
+        //Get AC for both variants
+        val AC1 = exac.getAC(v1)
+        val AC2 = exac.getAC(v2)
+
+        val v = VariantStats(v1,v2,AC1,AC2,v1Ann,v2Ann)
+        //Check if could be found in ExAC and how it seggregates
+        //info("Computing ExAC segregation for variant-pair:" + v1 +" | "+v2)
+        if(coseg) { v.sameExacHap = foundInSameSampleInExAC(exac, v1, v2) }
+
+        //Compute whether on the same haplotype based on EM using ExAC
+        //info("Computing ExAC phase for variant-pair:" + v1 +" | "+v2)
+        if(em) { v.setEMHap(probOnSameHaplotypeWithEM(exac, v1, v2)) }
+
+        return v
+      }
+
+      //Cache variants that have already been processed
+      var variantCache = mutable.Map[(String,String),VariantStats]()
+
       //info("Computing ExAC phase for "+variantPairs.size+" variant pairs...")
-      variantPairs.foreach({ case (v1, v2, sameTrioHap) =>
+      variantPairs.foreach({ case (v1, v2, sameTrioHap, kidSA) =>
 
         //Only store results where sites could be trio-phased
         if (sameTrioHap.isDefined) {
-          val AC1 = exac.getAC(v1)
-          val AC2 = exac.getAC(v2)
-          val k = if(AC1 < AC2) (AC1,AC2) else (AC2,AC1)
-          val v = new VPCResult(sameTrioHap.get)
-          //Check if could be found in ExAC and how it seggregates
-          //info("Computing ExAC segregation for variant-pair:" + v1 +" | "+v2)
-          if(coseg) {
-            foundInSameSampleInExAC(exac, v1, v2) match {
-              case Some(sameExacHap) =>
-                v.coSegExAC(sameExacHap, sameTrioHap.get)
-              case None =>
+
+          val variantStats = variantCache.get((v1,v2)) match {
+            case Some(cachedResult) => {
+              cachedResult
+            }
+            case None => {
+              val vStats = computeVariantStats(v1,v2)
+              variantCache((v1,v2)) = vStats
+              vStats
             }
           }
 
-          //Compute whether on the same haplotype based on EM using ExAC
-          //info("Computing ExAC phase for variant-pair:" + v1 +" | "+v2)
-          if(em) {
-            probOnSameHaplotypeWithEM(exac, v1, v2) match {
-              case Some(probSameHap) => v.sameHapExAC(probSameHap > 0.5, sameTrioHap.get)
-              case None =>
-            }
-          }
+          val k = variantStats.getKey(kidSA)
+          val v = new VPCResult(sameTrioHap.get, variantStats, coseg, em)
 
           //Add results
           res.get(k) match{
@@ -240,12 +341,12 @@ object SingletonLDinTrios extends Command {
 
     //Returns all pairs of variants for which the parent parentID is het at both sites, along with
     //whether each of the variant pairs are on the same haplotype or not based on the transmission of alleles in the trio (or None if ambiguous / missing data)
-    private def getHetPhasedVariantPairs(kidID: String, parentID: String, otherParentID: String) : Set[(String,String,Option[Boolean])] = {
+    private def getHetPhasedVariantPairs(kidID: String, parentID: String, otherParentID: String, kidSA : String = "") : Set[(String,String,Option[Boolean],String)] = {
       val genotypes = trios.getSample(parentID)
 
       (for((variant1, gt1) <- genotypes if gt1.isHet; (variant2,gt2) <- genotypes if gt2.isHet && variant1 < variant2) yield{
         //info("Found variant pair: " + variant1 + "/" + variant2 + " in parent " + parentID)
-            (variant1, variant2, isOnSameParentalHaplotype(variant1,variant2,kidID,otherParentID))
+            (variant1, variant2, isOnSameParentalHaplotype(variant1,variant2,kidID,otherParentID), kidSA)
       }).toSet
 
     }
@@ -449,10 +550,14 @@ object SingletonLDinTrios extends Command {
 
     val partitioner = new HashPartitioner(options.number_partitions)
 
-    val triosRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(trioVDS,state.sc , partitioner)(
+    val variantAnnotations = state.sc.broadcast(if(!options.vaStrat.isEmpty()) options.vaStrat.split(",") else Array[String]())
+
+    val sampleAnnotations = state.sc.broadcast(if(!options.saStrat.isEmpty()) options.saStrat.split(",") else Array[String]())
+
+    val triosRDD = SparseVariantSampleMatrixRRDBuilder.buildByAnnotation(trioVDS,state.sc , partitioner, variantAnnotations.value, sampleAnnotations.value)(
       {case (v,va) => triosGeneAnn(va).get.toString}
     ).mapValues({
-      case svm => new VariantPairsCounter(svm,ped.value)
+      case svm => new VariantPairsCounter(svm,ped.value,variantAnnotations.value, sampleAnnotations.value)
     }).persist(StorageLevel.MEMORY_AND_DISK)
 
     //Get unique variants that are found in pairs in our samples
@@ -511,7 +616,7 @@ object SingletonLDinTrios extends Command {
         trios.addExac(exac,run_coseg.value,run_em.value)
         info("Gene %s phasing done in %.1f seconds.".format(gene,(System.nanoTime - now) / 10e9))
         trios.toString(gene)
-      })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString()))
+      })).writeTable(options.output,header = Some("gene\t" + VariantPairsCounter.getHeaderString(run_coseg.value, run_em.value, variantAnnotations.value, sampleAnnotations.value)))
 
     state
   }
