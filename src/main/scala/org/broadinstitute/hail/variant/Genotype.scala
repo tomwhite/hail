@@ -391,6 +391,8 @@ object Genotype {
     m2
   }
 
+  def linearToPhredScale(a: Array[Double]): Array[Int] = linearToPhredScale(a.map{d => (d * 32768).toInt})
+
   def linearToPhredScale(a: Array[Int]): Array[Int] = {
     val x = a.map(phredConversionTable)
     x.map{d => (d - x.min + 0.5).toInt}
@@ -709,7 +711,7 @@ class GenotypeBuilder(nAlleles: Int) {
   private var gq: Int = 0
   private var px: Array[Int] = _
 
-  def clear() {
+  def clear() { //FIXME: Should this clear other variables?
     flags = 0
   }
 

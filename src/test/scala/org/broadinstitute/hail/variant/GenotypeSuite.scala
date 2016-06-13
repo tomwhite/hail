@@ -55,19 +55,15 @@ object GenotypeSuite {
           if (!res)
             println(s"g.pp=${ppTransformed.mkString(",")} g.pl=${g.pl().get.mkString(",")}")
           res
-        }
-
-        else if (g.isPP) {
+        } else if (g.isPP) {
           val plTransformed = g.pl(Option(uniformPriorPhred(g.px.get.length))).get
           val res = plTransformed sameElements g.pp().get
           if (!res)
             println(s"g.pl=${plTransformed.mkString(",")} g.pp=${g.pp().get.mkString(",")}")
           res
-        }
-        else
+        } else
           true // not testing GP here
-      }
-      else
+      } else
         g.pl() == g.pp()
     }
 
@@ -88,16 +84,45 @@ object GenotypeSuite {
           res
         } else
           true // not testing PL here
-      }
-      else
+      } else
         g.gp() == g.pp()
     }
 
-    //property("linearToPhredEqual")
-//
-//    val compGen = for ()
-//    property("testNonUniformPrior") = forAll
+    val compGenPL = for (nAlleles: Int <- Gen.choose(2, 10);
+                       g: Genotype <- Genotype.genPL(nAlleles);
+                       prior: Array[Int] <- Gen.buildableOfN[Array[Int], Int](triangle(nAlleles), Gen.choose(0, 1000))) yield (g, Genotype.renormPhredScale(prior))
 
+    property("nonUnifPriorPLtoPP") = forAll (compGenPL) {case (g: Genotype, prior: Array[Int]) =>
+      if (g.px.isDefined) {
+        if (g.isPL) {
+          val px2 = g.pp(Option(prior))
+          val flags = Genotype.flagSetHasPP(g.flags)
+          val g2 = g.copy(px = px2, flags = flags) // initialize as Genotype from PP
+          val res = g.pl(Option(prior)).get sameElements g2.pl(Option(prior)).get
+          res
+        } else
+          true //not testing PP or GP here
+      } else
+        true
+    }
+
+    val compGenPP = for (nAlleles: Int <- Gen.choose(2, 10);
+                         g: Genotype <- Genotype.genPP(nAlleles);
+                         prior: Array[Int] <- Gen.buildableOfN[Array[Int], Int](triangle(nAlleles), Gen.choose(0, 1000))) yield (g, Genotype.renormPhredScale(prior))
+
+    property("nonUnifPriorPPtoPL") = forAll (compGenPP) {case (g: Genotype, prior: Array[Int]) =>
+      if (g.px.isDefined) {
+        if (g.isPP) {
+          val px2 = g.pl(Option(prior))
+          val flags = Genotype.flagUnsetHasPP(g.flags)
+          val g2 = g.copy(px = px2, flags = flags) // initialize as Genotype from PL
+          val res = g.pp(Option(prior)).get sameElements g2.pp(Option(prior)).get
+          res
+        } else
+          true //not testing PL or GP here
+      } else
+        true
+    }
   }
 
 }

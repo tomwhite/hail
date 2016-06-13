@@ -64,6 +64,7 @@ object ExportVCF extends Command {
     val vds = state.vds
     val vas = vds.vaSignature
 
+
     val infoSignature = vds.vaSignature
       .getAsOption[TStruct]("info")
     val infoQuery: Querier = infoSignature match {
@@ -105,6 +106,7 @@ object ExportVCF extends Command {
         sb.append( """##FORMAT=<ID=GP,Number=G,Type=Float,Description="Normalized, Linear-scaled posterior probabilities for genotypes as defined in the VCF specification">\n""")
         sb += '\n'
       }
+
       vds.vaSignature.fieldOption("filters")
         .foreach { f =>
           f.attrs.foreach { case (key, desc) =>

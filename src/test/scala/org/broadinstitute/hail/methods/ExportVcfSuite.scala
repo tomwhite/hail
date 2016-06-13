@@ -128,4 +128,87 @@ class ExportVcfSuite extends SparkSuite {
 
     assert(lines1 == lines2)
   }
+
+  @Test def testExportFlags() {
+    var s = State(sc, sqlContext, null)
+
+    val testVCF = "src/test/resources/sample.vcf"
+    val outPL = tmpDir.createTempFile("testExportPL", ".vcf")
+    val outPP = tmpDir.createTempFile("testExportPP", ".vcf")
+    val outGP = tmpDir.createTempFile("testExportGP", ".vcf")
+    val outAll = tmpDir.createTempFile("testExportAll", ".vcf")
+
+    s = ImportVCF.run(s, Array(testVCF))
+
+    s = ExportVCF.run(s, Array("-o", outPL, "--export-pl"))
+    s = ExportVCF.run(s, Array("-o", outPP, "--export-pp"))
+    s = ExportVCF.run(s, Array("-o", outGP, "--export-gp"))
+    s = ExportVCF.run(s, Array("-o", outAll, "--export-gp","--export-pl","--export-pp"))
+
+    def read(fileName: String) = readFile(fileName, sc.hadoopConfiguration) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .toArray
+    }
+
+    def parseLines(lines: Array[String]) = {
+      var headerMatch = scala.collection.mutable.Map("PL" -> false, "PP" -> false, "GP" -> false)
+      var formatMatch = scala.collection.mutable.Map("PL" -> 0, "PP" -> 0, "GP" -> 0)
+      var nLines = 0
+      for (line <- lines) {
+        if (line.startsWith("#")) {
+          for (h <- headerMatch.keys){
+            if (line.contains(h))
+              headerMatch(h) = true
+          }
+        } else {
+          nLines += 1
+          val fields = line.split("\t")
+          val formatField = fields(8).split(":").toSet
+          for (f <- formatMatch.keys) {
+            if (formatField.contains(f)) {
+              formatMatch.update(f, formatMatch(f) + 1)
+            }
+          }
+        }
+      }
+      (headerMatch, formatMatch, nLines)
+    }
+
+    val plResults = parseLines(read(outPL))
+    val ppResults = parseLines(read(outPP))
+    val gpResults = parseLines(read(outGP))
+    val allResults = parseLines(read(outAll))
+
+    assert(plResults._1("PL") && !plResults._1("PP") && !plResults._1("GP") &&
+      plResults._2("PL") == plResults._3 && plResults._2("PP") == 0 && plResults._2("GP") == 0)
+
+    assert(!ppResults._1("PL") && ppResults._1("PP") && !ppResults._1("GP") &&
+      ppResults._2("PL") == 0 && ppResults._2("PP") == ppResults._3 && ppResults._2("GP") == 0)
+
+    assert(!gpResults._1("PL") && !gpResults._1("PP") && gpResults._1("GP") &&
+      gpResults._2("PL") == 0 && gpResults._2("PP") == 0 && gpResults._2("GP") == gpResults._3)
+
+    assert(allResults._1("PL") && allResults._1("PP") && allResults._1("GP") &&
+      allResults._2("PL") == allResults._3 && allResults._2("PP") == allResults._3 && allResults._2("GP") == allResults._3)
+    sys.exit()
+
+    var plState = State(sc, sqlContext, null)
+    plState = ImportVCF.run(plState, Array(outPL))
+
+    var ppState = State(sc, sqlContext, null)
+    ppState = ImportVCF.run(ppState, Array(outPP))
+
+    var gpState = State(sc, sqlContext, null)
+    gpState = ImportVCF.run(gpState, Array(outGP))
+
+    var allState = State(sc, sqlContext, null)
+    allState = ImportVCF.run(allState, Array(outAll))
+
+    //FIXME: move to ImportVCF suite
+    assert(plState.vds.rdd.map{case (v, va, gs) => gs.forall{g => g.isPL}}.fold(true)(_ && _))
+    assert(ppState.vds.rdd.map{case (v, va, gs) => gs.forall{g => g.isPP}}.fold(true)(_ && _))
+    assert(gpState.vds.rdd.map{case (v, va, gs) => gs.forall{g => g.isGP}}.fold(true)(_ && _))
+    sys.exit()
+  }
 }
