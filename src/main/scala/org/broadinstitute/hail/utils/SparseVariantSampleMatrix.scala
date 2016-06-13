@@ -10,12 +10,12 @@ import org.broadinstitute.hail.variant.{Genotype, GenotypeType, Variant, Variant
 import org.broadinstitute.hail.variant.GenotypeType._
 
 import scala.collection.immutable.VectorBuilder
-import scala.collection.mutable
+import scala.collection.{immutable, mutable}
 import scala.collection.mutable.{ArrayBuffer, ArrayBuilder, ListBuffer, Map}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.expr.{TEmpty, Type}
+import org.broadinstitute.hail.expr.{BaseType, Parser, TEmpty, Type}
 
 
 /**
@@ -26,11 +26,14 @@ object SparseVariantSampleMatrixRRDBuilder {
 
   //Given a mapping from a variant and its annotations to use as the key to the resulting PairRDD,
   //Aggregates the data in a SparseSampleVariantMatrix
-  def buildByAnnotation[K](vsm: VariantSampleMatrix[Genotype], sc: SparkContext, partitioner : Partitioner)(
+  def buildByAnnotation[K](vsm: VariantSampleMatrix[Genotype], sc: SparkContext, partitioner : Partitioner, sampleAnnotations: Array[String] = Array[String]())(
     mapOp: (Variant, Annotation)  => K)(implicit uct: ClassTag[K]): RDD[(K, SparseVariantSampleMatrix)] = {
 
     //Broadcast sample IDs
     val bcSampleIds = sc.broadcast(vsm.sampleIds)
+
+    //Build sample annotations
+    val sa = sc.broadcast(buildSamplesAnnotations(vsm,sampleAnnotations))
 
     vsm.rdd
       .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[Genotype])]) =>
@@ -44,18 +47,25 @@ object SparseVariantSampleMatrixRRDBuilder {
           })
           (mapOp(v,va), (v.toString,siBuilder.result(),gtBuilder.result()))
         }
-      }.aggregateByKey(new SparseVariantSampleMatrix(bcSampleIds.value), partitioner) (
+      }.aggregateByKey(new SparseVariantSampleMatrix(bcSampleIds.value, saSignature = sa.value._1, sampleAnnotations = sa.value._2), partitioner) (
       { case (svsm, (v,sampleIndices,genotypes)) => svsm.addVariant(v,sampleIndices,genotypes) },
       { (svsm1,svsm2) => svsm1.merge(svsm2) })
   }
 
   //Given a mapping from a variant and its annotations to use as the key to the resulting PairRDD,
   //Aggregates the data in a SparseSampleVariantMatrix
-  def buildByAnnotation[K](vsm: VariantSampleMatrix[Genotype], sc: SparkContext, partitioner : Partitioner, variantAnnotations : List[String])(
+  def buildByAnnotation[K](vsm: VariantSampleMatrix[Genotype], sc: SparkContext, partitioner : Partitioner, variantAnnotations : Array[String], sampleAnnotations: Array[String] = Array[String]())(
     mapOp: (Variant, Annotation)  => K)(implicit uct: ClassTag[K]): RDD[(K, SparseVariantSampleMatrix)] = {
+
+    if(variantAnnotations.isEmpty){
+      return buildByAnnotation(vsm,sc,partitioner,sampleAnnotations)(mapOp)
+    }
 
     //Broadcast sample IDs
     val bcSampleIds = sc.broadcast(vsm.sampleIds)
+
+    //Build sample annotations
+    val sa = sc.broadcast(buildSamplesAnnotations(vsm,sampleAnnotations))
 
     //Create annotations signature / querier / inserter
     var newVA : Type = TEmpty
@@ -86,7 +96,7 @@ object SparseVariantSampleMatrixRRDBuilder {
           })
           (mapOp(v,va), (v.toString,reducedVA,siBuilder.result(),gtBuilder.result()))
         }
-      }.aggregateByKey(new SparseVariantSampleMatrix(bcSampleIds.value, newVAbc.value), partitioner) (
+      }.aggregateByKey(new SparseVariantSampleMatrix(bcSampleIds.value, newVAbc.value, sa.value._1, sa.value._2), partitioner) (
       { case (svsm, (v,reducedVA,sampleIndices,genotypes)) =>
         var va = Annotation.empty
         reducedVA.indices.foreach({ i =>
@@ -96,9 +106,43 @@ object SparseVariantSampleMatrixRRDBuilder {
       { (svsm1,svsm2) => svsm1.merge(svsm2) })
   }
 
+
+  private def buildSamplesAnnotations(vsm: VariantSampleMatrix[Genotype], sampleAnnotations: Array[String]) : (Type,IndexedSeq[Annotation]) = {
+    if(sampleAnnotations.isEmpty){ return (TEmpty,IndexedSeq[Annotation]())}
+
+    var newSA : Type = TEmpty
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val querierBuilder = mutable.ArrayBuilder.make[Querier]
+    sampleAnnotations.foreach({a =>
+      val (atype, aquerier) = vsm.querySA(a)
+      querierBuilder += aquerier
+      val (s,i) = newSA.insert(atype.asInstanceOf[Type],expr.Parser.parseAnnotationRoot(a,"sa"))
+      inserterBuilder += i
+      newSA = s
+
+    })
+
+    val queriers = querierBuilder.result()
+    val inserters = inserterBuilder.result()
+
+
+    val saBuilder = mutable.ArrayBuilder.make[Annotation]
+    vsm.sampleAnnotations.indices.foreach({ ai =>
+      var sa = Annotation.empty
+      queriers.indices.foreach({ i =>
+        val ann  = queriers(i)(vsm.sampleAnnotations(ai))
+        sa = inserters(i)(sa,ann)
+      })
+      saBuilder += sa;
+    })
+
+
+    return (newSA,saBuilder.result().toIndexedSeq)
+  }
+
 }
 
-class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String], val vaSignature:Type = TEmpty) extends Serializable {
+class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String], val vaSignature:Type = TEmpty, val saSignature: Type = TEmpty, val sampleAnnotations: IndexedSeq[Annotation] = IndexedSeq[Annotation]()) extends Serializable {
 
   val nSamples = sampleIDs.length
   lazy val samplesIndex = sampleIDs.zipWithIndex.toMap
@@ -233,6 +277,58 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String], val vaSignatu
 
     return sample
   }
+
+  def queryVA(code: String): (BaseType, Querier) = {
+
+    val st = immutable.Map(Annotation.VARIANT_HEAD ->(0, vaSignature))
+    val a = new ArrayBuffer[Any]
+    a += null
+
+    val (t, f) = Parser.parse(code, st, a)
+
+    val f2: Annotation => Option[Any] = { annotation =>
+      a(0) = annotation
+      f()
+    }
+
+    (t, f2)
+  }
+
+  def querySA(code: String): (BaseType, Querier) = {
+
+    val st = immutable.Map(Annotation.SAMPLE_HEAD ->(0, saSignature))
+    val a = new ArrayBuffer[Any]
+    a += null
+
+    val (t, f) = Parser.parse(code, st, a)
+
+    val f2: Annotation => Option[Any] = { annotation =>
+      a(0) = annotation
+      f()
+    }
+
+    (t, f2)
+  }
+
+  def getSampleAnnotation(sampleID: String, annotation: String): Option[Any] ={
+    val qsa = queryVA(annotation)._2
+    qsa(sampleAnnotations(samplesIndex(sampleID)))
+
+  }
+
+  def getSampleAnnotation(sampleID: String, querier: Querier): Option[Any] ={
+    querier(sampleAnnotations(samplesIndex(sampleID)))
+  }
+
+  def getVariantAnnotation(variantID: String, annotation: String) : Option[Any] = {
+    val qva = queryVA(annotation)._2
+    qva(variantsAnnotations(variantsIndex(variantID)))
+  }
+
+  def getVariantAnnotation(variantID: String, querier: Querier) : Option[Any] = {
+    querier(variantsAnnotations(variantsIndex(variantID)))
+  }
+
 
   private def buildSampleView() = {
 
