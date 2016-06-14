@@ -69,7 +69,8 @@ object SingletonLDinTrios extends Command {
    object VariantPairsCounter{
     def getHeaderString(coseg: Boolean, em : Boolean, variantAnnotations: Array[String], sampleAnnotations: Array[String]) : String = {
 
-      variantAnnotations.foldLeft("AC1\tAC2")({(str,ann) => str + "\t" + ann + "1\t" + ann + "2"}) +
+      variantAnnotations.foldLeft("AC1\tAC2")({(str,ann) => str + "\t" + ann + "1"}) +
+        variantAnnotations.foldLeft("")({(str,ann) => str + "\t" + ann + "2"}) +
       sampleAnnotations.foldLeft("")({(str,ann) => str + "\t" + ann}) +
       "\tsameTrioHap\tdiffTrioHap" +
         (if(coseg) "\tcoInExAC\tnotCoInExAC\tsameHapTrioAndExAC\tdiffHapTrioAndExAC" else "") +
