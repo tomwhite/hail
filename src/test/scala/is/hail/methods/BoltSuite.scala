@@ -1,6 +1,7 @@
 package is.hail.methods
 
-import breeze.linalg.DenseMatrix
+import breeze.linalg.{DenseMatrix, DenseVector}
+import breeze.optimize.linear.ConjugateGradient
 import breeze.stats.distributions.Gaussian
 import is.hail.SparkSuite
 import org.testng.annotations.Test
@@ -28,12 +29,35 @@ class BoltSuite extends SparkSuite {
 
   def evalfREML(logDelta: Double, X: DenseMatrix[Double], mcTrials: Int, betaRand: DenseMatrix[Double], eRandUnscaled: DenseMatrix[Double]): Double
   = {
-    val yRand = DenseMatrix.zeros[Double](X.rows, mcTrials)
+    val M = X.cols
+    val N = X.rows
+    val delta = math.exp(logDelta)
+    val sqrtDelta = math.sqrt(delta)
+
+    val yRand = DenseMatrix.zeros[Double](N, mcTrials)
+    val betaHatRand = DenseMatrix.zeros[Double](M, mcTrials)
+    val eHatRand = DenseMatrix.zeros[Double](N, mcTrials)
+    //val Hinv = DenseMatrix.zeros[Double]
     for (t <- 0 until mcTrials) {
       // build random phenotypes using pre-generated components
-      yRand(::, t) := X * betaRand(::, t) + math.sqrt(logDelta) * eRandUnscaled(::, t) // TODO: sqrt(logDelta) or sqrt(delta)
+      // N.B. := is matrix subset update
+      yRand(::, t) := X * betaRand(::, t) + sqrtDelta * eRandUnscaled(::, t)
+      // compute H^-1*y
+      // TODO: note that we should not compute H, but instead have a custom CG
+      // implementation that does the computation using X directly
+      val H = (1.0 / M) * (X * X.t) + delta * DenseMatrix.eye[Double](M)
+      val cg = new ConjugateGradient[DenseVector[Double], DenseMatrix[Double]]()
+      val HinvYRand = cg.minimize(yRand(::, t), H)
+      println(HinvYRand)
+      betaHatRand(::, t) := (1.0 / M) * X.t * HinvYRand
+      eHatRand(::, t) := delta * HinvYRand
     }
+    println()
     println(yRand)
+    println()
+    println(betaHatRand)
+    println()
+    println(eHatRand)
     0.0
   }
 
