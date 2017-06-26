@@ -25,16 +25,15 @@ class BoltSuite extends SparkSuite {
 
     val h1Sq = 0.25
     val logDelta1 = math.log((1 - h1Sq) / h1Sq)
-    val f1 = evalfREML(logDelta1, X, y, mcTrials, betaRand, eRandUnscaled)
+    val (f1, sigmaGSq1, sigmaESq1) = evalfREML(logDelta1, X, y, mcTrials, betaRand, eRandUnscaled)
 
     val h2Sq = if (f1 < 0) 0.125 else 0.5
     val logDelta2 = math.log((1 - h2Sq) / h2Sq)
-    val f2 = evalfREML(logDelta2, X, y, mcTrials, betaRand, eRandUnscaled)
-
+    val (f2, sigmaGSq2, sigmaESq2) = evalfREML(logDelta2, X, y, mcTrials, betaRand, eRandUnscaled)
 
   }
 
-  def evalfREML(logDelta: Double, X: DenseMatrix[Double], y: DenseVector[Double], mcTrials: Int, betaRand: DenseMatrix[Double], eRandUnscaled: DenseMatrix[Double]): Double
+  def evalfREML(logDelta: Double, X: DenseMatrix[Double], y: DenseVector[Double], mcTrials: Int, betaRand: DenseMatrix[Double], eRandUnscaled: DenseMatrix[Double]): Tuple3[Double, Double, Double]
   = {
     val M = X.cols
     val N = X.rows
@@ -56,7 +55,6 @@ class BoltSuite extends SparkSuite {
       // compute H^-1*y_rand[:,t], where H = XX'/M + deltaI
       val cg = new ConjugateGradient[DenseVector[Double], DenseMatrix[Double]]()
       val HinvYRand = cg.minimize(yRand(::, t), H)
-      println("HinvYRand: " + HinvYRand)
 
       // compute BLUP estimated SNP effect sizes and residuals
       betaHatRand(::, t) := (1.0 / M) * X.t * HinvYRand
@@ -68,6 +66,8 @@ class BoltSuite extends SparkSuite {
     println("betaHatRand: " + betaHatRand)
     println()
     println("eHatRand: " + eHatRand)
+    println()
+    println("delta: " + delta)
 
     // compute BLUP estimated SNP effect sizes and residuals for real phenotypes
     val cg = new ConjugateGradient[DenseVector[Double], DenseMatrix[Double]]()
@@ -91,15 +91,22 @@ class BoltSuite extends SparkSuite {
     val betaHatDataSumSq = sq(betaHatData)
     val eHatDataSumSq = sq(eHatData)
 
+    println()
     println("betaHatRandSumSq: " + betaHatRandSumSq)
     println("eHatRandSumSq: " + eHatRandSumSq)
     println("betaHatDataSumSq: " + betaHatDataSumSq)
     println("eHatDataSumSq: " + eHatDataSumSq)
 
     val f = math.log((betaHatRandSumSq / eHatRandSumSq) / (betaHatDataSumSq / eHatDataSumSq))
-    println("f: " + f)
+    val sigmaGSq = ((1.0 / N) * y.t * HinvYData).valueAt(0) // convert 1x1 vector to double
+    val sigmaESq = delta * sigmaGSq
 
-    f
+    println()
+    println("f: " + f)
+    println("sigmaGSq: " + sigmaGSq)
+    println("sigmaESq: " + sigmaESq)
+
+    (f, sigmaGSq, sigmaESq)
   }
 
   def sq(x: DenseVector[Double]): Double = {
