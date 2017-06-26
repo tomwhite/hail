@@ -85,6 +85,8 @@ class BoltSuite extends SparkSuite {
     // implementation that does the computation using X directly
     val H = (1.0 / M) * (X * X.t) + delta * DenseMatrix.eye[Double](M)
 
+    val cg = new ConjugateGradient[DenseVector[Double], DenseMatrix[Double]](maxIterations = 100)
+
     val yRand = DenseMatrix.zeros[Double](N, mcTrials)
     val betaHatRand = DenseMatrix.zeros[Double](M, mcTrials)
     val eHatRand = DenseMatrix.zeros[Double](N, mcTrials)
@@ -94,7 +96,6 @@ class BoltSuite extends SparkSuite {
       yRand(::, t) := X * betaRand(::, t) + sqrtDelta * eRandUnscaled(::, t)
 
       // compute H^-1*y_rand[:,t], where H = XX'/M + deltaI
-      val cg = new ConjugateGradient[DenseVector[Double], DenseMatrix[Double]]()
       val HinvYRand = cg.minimize(yRand(::, t), H)
 
       // compute BLUP estimated SNP effect sizes and residuals
@@ -111,7 +112,6 @@ class BoltSuite extends SparkSuite {
     println("delta: " + delta)
 
     // compute BLUP estimated SNP effect sizes and residuals for real phenotypes
-    val cg = new ConjugateGradient[DenseVector[Double], DenseMatrix[Double]]()
     val HinvYData = cg.minimize(y, H)
     val betaHatData = (1.0 / M) * X.t * HinvYData
     val eHatData = delta * HinvYData
