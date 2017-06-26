@@ -1,10 +1,12 @@
 package is.hail.methods
 
-import breeze.linalg.{DenseMatrix, DenseVector}
+import breeze.linalg.{DenseMatrix, DenseVector, norm}
 import breeze.optimize.linear.ConjugateGradient
+import breeze.stats.mean
 import breeze.stats.distributions.Gaussian
 import is.hail.SparkSuite
 import org.testng.annotations.Test
+
 import scala.util.control.Breaks._
 
 class BoltSuite extends SparkSuite {
@@ -17,11 +19,47 @@ class BoltSuite extends SparkSuite {
       (0.9, 0.3, 0.1, 0.8, 0.4))
     val y = DenseVector(0.1, 0.4, 0.5)
 
-    val (sigmaGSq, sigmaESq) = estimateVarianceParameters(X, y)
+    val (xnorm, ynorm) = normalizeData(X, y)
+//    println("X: " + X)
+//    println("Xnorm: " + xnorm)
+//    println("y: " + y)
+//    println("y mean centered and normalized: " + ynorm)
+//    println("mean: " + mean(ynorm))
+//    println("var: " + variance(ynorm))
+//    println("norm: " + norm(ynorm))
+
+    val (sigmaGSq, sigmaESq) = estimateVarianceParameters(xnorm, ynorm)
 
     println("Final results")
     println("sigmaGSq: " + sigmaGSq)
     println("sigmaESq: " + sigmaESq)
+  }
+
+  def meanCenterNormalize(v: DenseVector[Double]): DenseVector[Double] = {
+    val meanCentered = v - mean(v)
+    val norm2 = sq(meanCentered)
+    if (norm2 > 0) {
+      val scale = math.sqrt(v.length / norm2)
+      return meanCentered * scale
+    }
+    meanCentered
+  }
+
+  def variance(v: DenseVector[Double]): Double = {
+    val m = mean(v)
+    var s = 0.0
+    for (i <- 0 until v.length) {
+      s += (v(i) - m) * (v(i) - m)
+    }
+    s / v.length
+  }
+
+  def normalizeData(X: DenseMatrix[Double], y: DenseVector[Double]): (DenseMatrix[Double], DenseVector[Double]) = {
+    val Xnorm = DenseMatrix.zeros[Double](X.rows, X.cols)
+    for (c <- 0 until X.cols) {
+      Xnorm(::, c) := meanCenterNormalize(X(::, c))
+    }
+    (Xnorm, meanCenterNormalize(y))
   }
 
   def estimateVarianceParameters(X: DenseMatrix[Double], y: DenseVector[Double]): (Double, Double) = {
@@ -37,7 +75,7 @@ class BoltSuite extends SparkSuite {
     val betaRand = DenseMatrix.rand(M, mcTrials, Gaussian(0, math.sqrt(1.0 / M)))
     val eRandUnscaled = DenseMatrix.rand(N, mcTrials, Gaussian(0, 1))
 
-    val maxS = 4 // TODO: 7
+    val maxS = 4 // TODO: 7, but diverges
     // use 1-indexes to match pseudocode
     val hSq = new Array[Double](maxS + 1)
     val logDelta = new Array[Double](maxS + 1)
