@@ -1,10 +1,15 @@
 package is.hail.methods
 
-import breeze.linalg.{DenseMatrix, DenseVector, norm}
+import breeze.linalg.{DenseMatrix, DenseVector}
 import breeze.optimize.linear.ConjugateGradient
-import breeze.stats.mean
 import breeze.stats.distributions.Gaussian
+import breeze.stats.mean
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
+import is.hail.utils._
+import is.hail.variant.VariantDataset
+import org.apache.hadoop.conf.Configuration
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.testng.annotations.Test
 
 import scala.util.control.Breaks._
@@ -15,8 +20,35 @@ class BoltSuite extends SparkSuite {
   def testBoltExampleData(): Unit = {
     val vds = hc.importPlinkBFile("src/test/resources/bolt-lmm/EUR_subset", quantPheno = true)
     val (nSamples, nVariants) = vds.count()
-    println("nSamples: " + nSamples)
-    println("nVariants: " + nVariants)
+    assert(nSamples == 379, "nSamples total")
+    assert(nVariants == 54051, "nVariants total")
+
+    val removeSamplesPath = "src/test/resources/bolt-lmm/EUR_subset.remove"
+    val excludeSnpsPath = "src/test/resources/bolt-lmm/EUR_subset.exclude"
+    val vdsRemove = removeSamples(vds, hadoopConf, removeSamplesPath)
+    val vdsExclude = excludeSnps(vdsRemove, hadoopConf, excludeSnpsPath)
+
+    val (nSamplesFiltered, nVariantsFiltered) = vdsExclude.count()
+    assert(nSamplesFiltered == 373, "nSamples after processing remove file")
+    assert(nVariantsFiltered == 48646, "nVariants after processing exclude file")
+  }
+
+  def removeSamples(vds: VariantDataset, hadoopConf: Configuration, removeSamplesPath:
+    String): VariantDataset = {
+    val removedSamples = hadoopConf.readLines(removeSamplesPath)(_.map(_.map(
+      _.split("\\s+")(1) // IID
+    ).value: Annotation).toSet)
+    vds.filterSamplesList(removedSamples, keep = false)
+  }
+
+  def excludeSnps(vds: VariantDataset, hadoopConf: Configuration, excludeSnpsPath:
+  String): VariantDataset = {
+    val excludedSnps = hadoopConf.readLines(excludeSnpsPath)(_.map(_.value: String).toSet)
+    vds.filterVariants {
+      case (_, va, _) =>
+        val va0 = va.asInstanceOf[GenericRow].get(0)
+        !excludedSnps.contains(va0.asInstanceOf[String])
+    }
   }
 
   //@Test
@@ -29,13 +61,13 @@ class BoltSuite extends SparkSuite {
     val y = DenseVector(0.1, 0.4, 0.5)
 
     val (xnorm, ynorm) = normalizeData(X, y)
-//    println("X: " + X)
-//    println("Xnorm: " + xnorm)
-//    println("y: " + y)
-//    println("y mean centered and normalized: " + ynorm)
-//    println("mean: " + mean(ynorm))
-//    println("var: " + variance(ynorm))
-//    println("norm: " + norm(ynorm))
+    //    println("X: " + X)
+    //    println("Xnorm: " + xnorm)
+    //    println("y: " + y)
+    //    println("y mean centered and normalized: " + ynorm)
+    //    println("mean: " + mean(ynorm))
+    //    println("var: " + variance(ynorm))
+    //    println("norm: " + norm(ynorm))
 
     val (sigmaGSq, sigmaESq) = estimateVarianceParameters(xnorm, ynorm)
 
@@ -84,7 +116,8 @@ class BoltSuite extends SparkSuite {
     val betaRand = DenseMatrix.rand(M, mcTrials, Gaussian(0, math.sqrt(1.0 / M)))
     val eRandUnscaled = DenseMatrix.rand(N, mcTrials, Gaussian(0, 1))
 
-    val maxS = 4 // TODO: 7, but diverges
+    val maxS = 4
+    // TODO: 7, but diverges
     // use 1-indexes to match pseudocode
     val hSq = new Array[Double](maxS + 1)
     val logDelta = new Array[Double](maxS + 1)
@@ -186,7 +219,8 @@ class BoltSuite extends SparkSuite {
     println("eHatDataSumSq: " + eHatDataSumSq)
 
     val f = math.log((betaHatRandSumSq / eHatRandSumSq) / (betaHatDataSumSq / eHatDataSumSq))
-    val sigmaGSq = ((1.0 / N) * y.t * HinvYData).valueAt(0) // convert 1x1 vector to double
+    val sigmaGSq = ((1.0 / N) * y.t * HinvYData).valueAt(0)
+    // convert 1x1 vector to double
     val sigmaESq = delta * sigmaGSq
 
     println()
