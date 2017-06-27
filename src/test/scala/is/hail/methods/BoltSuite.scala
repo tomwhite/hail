@@ -11,7 +11,16 @@ import scala.util.control.Breaks._
 
 class BoltSuite extends SparkSuite {
 
-  @Test def test(): Unit = {
+  @Test
+  def testBoltExampleData(): Unit = {
+    val vds = hc.importPlinkBFile("src/test/resources/bolt-lmm/EUR_subset", quantPheno = true)
+    val (nSamples, nVariants) = vds.count()
+    println("nSamples: " + nSamples)
+    println("nVariants: " + nVariants)
+  }
+
+  //@Test
+  def test(): Unit = {
 
     val X = DenseMatrix(
       (1.0, 0.1, 0.5, 0.2, 0.4),

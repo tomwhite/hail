@@ -1,0 +1,531 @@
+                      +-----------------------------+
+                      |                       ___   |
+                      |   BOLT-LMM, v2.2     /_ /   |
+                      |   November 13, 2015   /_/   |
+                      |   Po-Ru Loh            //   |
+                      |                        /    |
+                      +-----------------------------+
+
+Copyright (2014-2015) Harvard University.  All rights reserved.
+Non-commercial use only.
+
+Compiled with USE_SSE: fast aligned memory access
+Compiled with USE_MKL: Intel Math Kernel Library linear algebra
+Boost version: 1_58
+
+Command line options:
+
+../bolt \
+    --bfile=EUR_subset \
+    --phenoFile=EUR_subset.pheno.covars \
+    --phenoCol=PHENO \
+    --phenoCol=QCOV1 \
+    --modelSnps=EUR_subset.modelSnps2 \
+    --reml \
+    --numThreads=2 
+
+Setting number of threads to 2
+fam: EUR_subset.fam
+bim(s): EUR_subset.bim
+bed(s): EUR_subset.bed
+
+=== Reading genotype data ===
+
+Total indivs in PLINK data: Nbed = 379
+Total indivs stored in memory: N = 379
+Reading bim file #1: EUR_subset.bim
+    Read 54051 snps
+Total snps in PLINK data: Mbed = 54051
+Reading list of SNPs to include in model (i.e., GRM): EUR_subset.modelSnps2
+Included 11751 SNP(s) in model in 2 variance component(s)
+
+Breakdown of SNP pre-filtering results:
+  11751 SNPs to include in model (i.e., GRM)
+  0 additional non-GRM SNPs loaded
+  42300 excluded SNPs
+Allocating 11751 x 380/4 bytes to store genotypes
+Reading genotypes and performing QC filtering on snps and indivs...
+Reading bed file #1: EUR_subset.bed
+    Expecting 5134845 (+3) bytes for 379 indivs, 54051 snps
+Total indivs after QC: 379
+Total post-QC SNPs: M = 11751
+  Variance component 1: 5813 post-QC SNPs (name: 'chr21')
+  Variance component 2: 5938 post-QC SNPs (name: 'chr22')
+Time for SnpData setup = 0.328128 sec
+
+=== Reading phenotype and covariate data ===
+
+Read data for 373 indivs (ignored 0 without genotypes) from:
+  EUR_subset.pheno.covars
+Number of indivs with no missing phenotype(s) to use: 369
+NOTE: Using all-1s vector (constant term) in addition to specified covariates
+    Using quantitative covariate: CONST_ALL_ONES
+Number of individuals used in analysis: Nused = 369
+Singular values of covariate matrix:
+    S[0] = 19.2094
+Total covariate vectors: C = 1
+Total independent covariate vectors: Cindep = 1
+
+=== Initializing Bolt object: projecting and normalizing SNPs ===
+
+Number of chroms with >= 1 good SNP: 2
+Average norm of projected SNPs:           368.000000
+Dimension of all-1s proj space (Nused-1): 368
+Time for covariate data setup + Bolt initialization = 0.0612381 sec
+
+=== Estimating variance parameters ===
+
+=== Making initial guesses for phenotype 1 ===
+
+Using 3 random trials
+
+Estimating MC scaling f_REML at log(delta) = 1.09861, h2 = 0.25...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.1,0.1)  res2s: 877.223..199.318
+  iter 2:  time=0.03  rNorms/orig: (0.02,0.02)  res2s: 903.68..205.098
+  iter 3:  time=0.03  rNorms/orig: (0.004,0.004)  res2s: 905.245..205.358
+  iter 4:  time=0.03  rNorms/orig: (0.0004,0.0005)  res2s: 905.313..205.373
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 47.5%, memory/overhead = 52.5%
+  MCscaling: logDelta = 1.10, h2 = 0.250, f = -0.0194089
+
+Estimating MC scaling f_REML at log(delta) = 1.94591, h2 = 0.125...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.05,0.05)  res2s: 2439.59..270.968
+  iter 2:  time=0.03  rNorms/orig: (0.004,0.006)  res2s: 2458.48..273.086
+  iter 3:  time=0.03  rNorms/orig: (0.0005,0.0006)  res2s: 2458.8..273.116
+  iter 4:  time=0.03  rNorms/orig: (3e-05,4e-05)  res2s: 2458.8..273.117
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 45.5%, memory/overhead = 54.5%
+  MCscaling: logDelta = 1.95, h2 = 0.125, f = -0.00585919
+
+Estimating MC scaling f_REML at log(delta) = 2.3123, h2 = 0.0901093...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.04,0.04)  res2s: 3669.61..292.911
+  iter 2:  time=0.03  rNorms/orig: (0.002,0.003)  res2s: 3684.37..294.129
+  iter 3:  time=0.03  rNorms/orig: (0.0002,0.0002)  res2s: 3684.5..294.138
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 45.4%, memory/overhead = 54.6%
+  MCscaling: logDelta = 2.31, h2 = 0.090, f = -0.00184103
+
+Estimating MC scaling f_REML at log(delta) = 2.48017, h2 = 0.0772599...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.03,0.03)  res2s: 4404.18..301.205
+  iter 2:  time=0.03  rNorms/orig: (0.001,0.002)  res2s: 4417.18..302.134
+  iter 3:  time=0.03  rNorms/orig: (0.0001,0.0001)  res2s: 4417.26..302.14
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 45.4%, memory/overhead = 54.6%
+  MCscaling: logDelta = 2.48, h2 = 0.077, f = -0.000310092
+
+Estimating MC scaling f_REML at log(delta) = 2.51417, h2 = 0.0748704...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.03,0.03)  res2s: 4568.66..302.76
+  iter 2:  time=0.03  rNorms/orig: (0.001,0.002)  res2s: 4581.31..303.638
+  iter 3:  time=0.03  rNorms/orig: (0.0001,0.0001)  res2s: 4581.39..303.643
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 45.4%, memory/overhead = 54.6%
+  MCscaling: logDelta = 2.51, h2 = 0.075, f = -2.15848e-05
+
+Secant iteration for h2 estimation converged in 3 steps
+Estimated (pseudo-)heritability: h2g = 0.075
+To more precisely estimate variance parameters and s.e., use --reml
+Variance params: sigma^2_K = 0.072016, logDelta = 2.514175, f = -2.15848e-05
+
+h2 with all VCs:     0.0748704
+
+=== Re-estimating variance parameters for 2 leave-out reps ===
+
+Using 3 random trials
+
+Estimating MC scaling f_REML at log(delta) = 2.51417, h2 = 0.0748704...
+  Batch-solving 8 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.04,0.05)  res2s: 4490.85..303.34
+  iter 2:  time=0.03  rNorms/orig: (0.002,0.003)  res2s: 4513.5..305.015
+  iter 3:  time=0.03  rNorms/orig: (0.0001,0.0003)  res2s: 4513.7..305.028
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 53.1%, memory/overhead = 46.9%
+Estimating MC scaling f_REML at log(delta) = 3.51417, h2 = 0.0289116...
+  Batch-solving 8 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.02,0.02)  res2s: 12906.7..333.687
+  iter 2:  time=0.03  rNorms/orig: (0.0003,0.0005)  res2s: 12916.3..333.975
+  Converged at iter 2: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 53.1%, memory/overhead = 46.9%
+WARNING: Estimated h2 on leave-out batch 0 exceeds all-SNPs h2
+         Replacing 0.288462 with 0.0748704
+MCscaling:   logDelta[0] = 2.514175,   h2 = 0.075,   Mused = 5938  (50.5%)
+MCscaling:   logDelta[1] = 7.855900,   h2 = 0.000,   Mused = 5813  (49.5%)
+
+h2 leaving out VC 1: 0.0748704
+h2 leaving out VC 2: 0.000387309
+guess h2 for VC 1:   0.000385316
+guess h2 for VC 2:   0.0744851
+=== Making initial guesses for phenotype 2 ===
+
+Using 3 random trials
+
+Estimating MC scaling f_REML at log(delta) = 1.09861, h2 = 0.25...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.1,0.1)  res2s: 877.223..51.6496
+  iter 2:  time=0.03  rNorms/orig: (0.02,0.03)  res2s: 903.68..53.4308
+  iter 3:  time=0.03  rNorms/orig: (0.004,0.004)  res2s: 905.245..53.5676
+  iter 4:  time=0.03  rNorms/orig: (0.0004,0.0005)  res2s: 905.313..53.572
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 45.4%, memory/overhead = 54.6%
+  MCscaling: logDelta = 1.10, h2 = 0.250, f = -0.0300766
+
+Estimating MC scaling f_REML at log(delta) = 1.94591, h2 = 0.125...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.05,0.06)  res2s: 2439.59..70.3277
+  iter 2:  time=0.03  rNorms/orig: (0.004,0.008)  res2s: 2458.48..71.0222
+  iter 3:  time=0.03  rNorms/orig: (0.0005,0.0006)  res2s: 2458.8..71.0393
+  iter 4:  time=0.03  rNorms/orig: (3e-05,4e-05)  res2s: 2458.8..71.0395
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 45.4%, memory/overhead = 54.6%
+  MCscaling: logDelta = 1.95, h2 = 0.125, f = -0.0108183
+
+Estimating MC scaling f_REML at log(delta) = 2.42187, h2 = 0.0815198...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.03,0.04)  res2s: 4134.92..77.501
+  iter 2:  time=0.03  rNorms/orig: (0.002,0.003)  res2s: 4148.52..77.8447
+  iter 3:  time=0.03  rNorms/orig: (0.0001,0.0002)  res2s: 4148.62..77.8487
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 45.4%, memory/overhead = 54.6%
+  MCscaling: logDelta = 2.42, h2 = 0.082, f = -0.00275907
+
+Estimating MC scaling f_REML at log(delta) = 2.58482, h2 = 0.0701217...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.03,0.04)  res2s: 4928.87..79.4392
+  iter 2:  time=0.03  rNorms/orig: (0.001,0.003)  res2s: 4940.83..79.7038
+  iter 3:  time=0.03  rNorms/orig: (8e-05,0.0001)  res2s: 4940.89..79.7061
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 45.4%, memory/overhead = 54.6%
+  MCscaling: logDelta = 2.58, h2 = 0.070, f = -0.000459601
+
+Estimating MC scaling f_REML at log(delta) = 2.61739, h2 = 0.0680276...
+  Batch-solving 4 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.03,0.03)  res2s: 5103.71..79.7979
+  iter 2:  time=0.03  rNorms/orig: (0.001,0.002)  res2s: 5115.37..80.0488
+  iter 3:  time=0.03  rNorms/orig: (7e-05,0.0001)  res2s: 5115.43..80.0509
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 45.4%, memory/overhead = 54.6%
+  MCscaling: logDelta = 2.62, h2 = 0.068, f = -2.70445e-05
+
+Secant iteration for h2 estimation converged in 3 steps
+Estimated (pseudo-)heritability: h2g = 0.068
+To more precisely estimate variance parameters and s.e., use --reml
+Variance params: sigma^2_K = 0.017003, logDelta = 2.617390, f = -2.70445e-05
+
+h2 with all VCs:     0.0680276
+
+=== Re-estimating variance parameters for 2 leave-out reps ===
+
+Using 3 random trials
+
+Estimating MC scaling f_REML at log(delta) = 2.61739, h2 = 0.0680276...
+  Batch-solving 8 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.04,0.05)  res2s: 5022.54..79.266
+  iter 2:  time=0.03  rNorms/orig: (0.002,0.003)  res2s: 5043.44..79.7384
+  iter 3:  time=0.03  rNorms/orig: (8e-05,0.0002)  res2s: 5043.59..79.7422
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 53.1%, memory/overhead = 46.9%
+Estimating MC scaling f_REML at log(delta) = 3.61739, h2 = 0.0261505...
+  Batch-solving 8 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.03  rNorms/orig: (0.01,0.02)  res2s: 14355..86.9174
+  iter 2:  time=0.03  rNorms/orig: (0.0003,0.0005)  res2s: 14363.6..86.9988
+  iter 3:  time=0.03  rNorms/orig: (6e-06,1e-05)  res2s: 14363.7..86.9989
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 53.1%, memory/overhead = 46.9%
+MCscaling:   logDelta[0] = 4.633643,   h2 = 0.010,   Mused = 5938  (50.5%)
+WARNING: Estimated h2 on leave-out batch 1 exceeds all-SNPs h2
+         Replacing 0.308992 with 0.0680276
+MCscaling:   logDelta[1] = 2.617390,   h2 = 0.068,   Mused = 5813  (49.5%)
+
+h2 leaving out VC 1: 0.00962573
+h2 leaving out VC 2: 0.0680276
+guess h2 for VC 1:   0.059595
+guess h2 for VC 2:   0.00843255
+
+===============================================================================
+
+Stochastic REML optimization with MCtrials = 15
+
+phenoNormsCorrs[2,2]((0.980091,0.0497923),(0.0497923,0.499705))
+Initial variance parameter guesses:
+Vegs[0][2,2]((0.92513,0.0462344),(0.0462344,0.931972))
+Vegs[1][2,2]((0.000385316,0.000238603),(0.000238603,0.059595))
+Vegs[2][2,2]((0.0744851,0.00124789),(0.00124789,0.00843255))
+
+Performing initial gradient evaluation
+  Batch-solving 16 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.08  rNorms/orig: (0.06,0.07)  res2s: 676.249..730.177
+  iter 2:  time=0.08  rNorms/orig: (0.003,0.006)  res2s: 684.157..738.635
+  iter 3:  time=0.08  rNorms/orig: (0.0002,0.0005)  res2s: 684.211..738.689
+  iter 4:  time=0.08  rNorms/orig: (2e-05,4e-05)  res2s: 684.212..738.69
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 60.0%, memory/overhead = 40.0%
+grad[9](2.63268,2.48299,1.31827,-2.14153,-6.38201,1.57896,-2.88865,6.35797,-8.85424)
+
+-------------------------------------------------------------------------------
+
+Start ITER 1: computing AI matrix
+  Multiplying solutions by variance components... time=0.02
+  Batch-solving 9 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.05  rNorms/orig: (0.06,0.08)  res2s: 372.185..469.148
+  iter 2:  time=0.05  rNorms/orig: (0.004,0.008)  res2s: 376.406..476.108
+  iter 3:  time=0.05  rNorms/orig: (0.0003,0.0006)  res2s: 376.431..476.204
+  iter 4:  time=0.05  rNorms/orig: (3e-05,4e-05)  res2s: 376.431..476.205
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 57.9%, memory/overhead = 42.1%
+Reducing off-diagonals by a factor of 0.603403 to make matrix positive definite
+
+Constrained Newton-Raphson optimized variance parameters:
+optVegs[0][2,2]((0.997991,0.0853992),(0.0853992,0.934845))
+optVegs[1][2,2]((0.0123433,-0.0298492),(-0.0298492,0.0721829))
+optVegs[2][2,2]((6.99643e-07,4.79826e-08),(4.79826e-08,4.29072e-09))
+
+Predicted change in log likelihood: 0.514748
+
+Computing actual (approximate) change in log likelihood
+  Batch-solving 16 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.08  rNorms/orig: (0.06,0.07)  res2s: 673.548..715.898
+  iter 2:  time=0.08  rNorms/orig: (0.003,0.005)  res2s: 682.305..725.691
+  iter 3:  time=0.08  rNorms/orig: (0.0002,0.0005)  res2s: 682.342..725.77
+  Converged at iter 3: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 60.0%, memory/overhead = 40.0%
+grad[9](1.40124,-2.60972,0.815093,-3.60121,-6.65078,1.48156,0.493612,-1.51582,-8.55074)
+
+Approximate change in log likelihood: 0.488092 (attempt 1)
+rho (approximate / predicted change in LL) = 0.948214
+Old trust region radius: 1e+100
+New trust region radius: 1e+100
+Accepted step
+
+End ITER 1
+Vegs[0][2,2]((0.997991,0.0853992),(0.0853992,0.934845))
+Vegs[1][2,2]((0.0123433,-0.0298492),(-0.0298492,0.0721829))
+Vegs[2][2,2]((6.99643e-07,4.79826e-08),(4.79826e-08,4.29072e-09))
+
+-------------------------------------------------------------------------------
+
+Start ITER 2: computing AI matrix
+  Multiplying solutions by variance components... time=0.02
+  Batch-solving 9 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.05  rNorms/orig: (0.04,0.09)  res2s: 354.84..469.776
+  iter 2:  time=0.05  rNorms/orig: (0.002,0.009)  res2s: 358.701..479.585
+  iter 3:  time=0.05  rNorms/orig: (0.0002,0.0005)  res2s: 358.712..479.751
+  iter 4:  time=0.05  rNorms/orig: (2e-05,4e-05)  res2s: 358.712..479.752
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 58.0%, memory/overhead = 42.0%
+Reducing off-diagonals by a factor of 2.97185e-06 to make matrix positive definite
+Reducing off-diagonals by a factor of 1.86265e-09 to make matrix positive definite
+
+Constrained Newton-Raphson optimized variance parameters:
+optVegs[0][2,2]((1.00392,0.0811961),(0.0811961,0.930457))
+optVegs[1][2,2]((0.0127862,-0.0325562),(-0.0325562,0.0828943))
+optVegs[2][2,2]((1.48517e-09,7.93935e-11),(7.93935e-11,1.16494e-09))
+
+Predicted change in log likelihood: 0.0265447
+
+Computing actual (approximate) change in log likelihood
+  Batch-solving 16 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.08  rNorms/orig: (0.06,0.07)  res2s: 669.875..707.027
+  iter 2:  time=0.08  rNorms/orig: (0.003,0.007)  res2s: 677.761..715.905
+  iter 3:  time=0.08  rNorms/orig: (0.0002,0.0006)  res2s: 677.815..716.026
+  iter 4:  time=0.08  rNorms/orig: (3e-05,5e-05)  res2s: 677.816..716.028
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 60.0%, memory/overhead = 40.0%
+grad[9](0.135214,-0.094742,-0.288501,-4.87603,-3.73063,-0.366045,-0.764901,0.804797,-9.50395)
+
+Approximate change in log likelihood: 0.0272304 (attempt 1)
+rho (approximate / predicted change in LL) = 1.02583
+Old trust region radius: 1e+100
+New trust region radius: 1e+100
+Accepted step
+
+End ITER 2
+Vegs[0][2,2]((1.00392,0.0811961),(0.0811961,0.930457))
+Vegs[1][2,2]((0.0127862,-0.0325562),(-0.0325562,0.0828943))
+Vegs[2][2,2]((1.48517e-09,7.93935e-11),(7.93935e-11,1.16494e-09))
+
+-------------------------------------------------------------------------------
+
+Start ITER 3: computing AI matrix
+  Multiplying solutions by variance components... time=0.02
+  Batch-solving 9 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.05  rNorms/orig: (0.04,0.09)  res2s: 345.497..457.71
+  iter 2:  time=0.05  rNorms/orig: (0.002,0.01)  res2s: 348.535..467.382
+  iter 3:  time=0.05  rNorms/orig: (0.0003,0.0007)  res2s: 348.545..467.609
+  iter 4:  time=0.05  rNorms/orig: (2e-05,6e-05)  res2s: 348.545..467.611
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 58.0%, memory/overhead = 42.0%
+
+Constrained Newton-Raphson optimized variance parameters:
+optVegs[0][2,2]((1.00392,0.0811961),(0.0811961,0.930457))
+optVegs[1][2,2]((0.0127862,-0.0325562),(-0.0325562,0.0828943))
+optVegs[2][2,2]((1.53134e-09,8.46499e-11),(8.46499e-11,1.00468e-09))
+
+Predicted change in log likelihood: 1.49813e-09
+AI iteration converged: predicted change in log likelihood < tol = 0.01
+
+===============================================================================
+
+Refining REML optimization with MCtrials = 100
+
+phenoNormsCorrs[2,2]((0.980091,0.0497923),(0.0497923,0.499705))
+Initial variance parameter guesses:
+Vegs[0][2,2]((1.00392,0.0811961),(0.0811961,0.930457))
+Vegs[1][2,2]((0.0127862,-0.0325562),(-0.0325562,0.0828943))
+Vegs[2][2,2]((1.53134e-09,8.46499e-11),(8.46499e-11,1.00468e-09))
+
+Performing initial gradient evaluation
+  Batch-solving 101 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.41  rNorms/orig: (0.06,0.07)  res2s: 678.141..707.027
+  iter 2:  time=0.41  rNorms/orig: (0.003,0.008)  res2s: 686.963..715.905
+  iter 3:  time=0.41  rNorms/orig: (0.0002,0.0006)  res2s: 687.01..716.026
+  iter 4:  time=0.41  rNorms/orig: (1e-05,5e-05)  res2s: 687.011..716.028
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 61.6%, memory/overhead = 38.4%
+grad[9](-2.86884,-0.418871,-1.42715,-7.93315,-3.31915,-0.0717357,-1.9603,2.35354,-11.1399)
+
+-------------------------------------------------------------------------------
+
+Start ITER 1: computing AI matrix
+  Multiplying solutions by variance components... time=0.02
+  Batch-solving 9 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.05  rNorms/orig: (0.04,0.09)  res2s: 345.497..457.71
+  iter 2:  time=0.05  rNorms/orig: (0.002,0.01)  res2s: 348.535..467.382
+  iter 3:  time=0.05  rNorms/orig: (0.0003,0.0007)  res2s: 348.545..467.609
+  iter 4:  time=0.05  rNorms/orig: (2e-05,6e-05)  res2s: 348.545..467.611
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 58.0%, memory/overhead = 42.0%
+Reducing off-diagonals by a factor of 2.23517e-08 to make matrix positive definite
+Reducing off-diagonals by a factor of 5.11296e-06 to make matrix positive definite
+Reducing off-diagonals by a factor of 2.03028e-07 to make matrix positive definite
+
+Constrained Newton-Raphson optimized variance parameters:
+optVegs[0][2,2]((0.969416,0.0744128),(0.0744128,0.89697))
+optVegs[1][2,2]((0.00895343,-0.0312476),(-0.0312476,0.109054))
+optVegs[2][2,2]((0.0215587,0.0029078),(0.0029078,0.0003922))
+
+Predicted change in log likelihood: 0.0693643
+
+Computing actual (approximate) change in log likelihood
+  Batch-solving 101 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.41  rNorms/orig: (0.06,0.08)  res2s: 692.963..722.841
+  iter 2:  time=0.41  rNorms/orig: (0.005,0.01)  res2s: 703.869..733.697
+  iter 3:  time=0.41  rNorms/orig: (0.0004,0.001)  res2s: 703.999..733.977
+  iter 4:  time=0.41  rNorms/orig: (4e-05,0.0001)  res2s: 704..733.982
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 61.6%, memory/overhead = 38.4%
+grad[9](-0.0317539,0.0151822,0.23283,-5.36586,-2.50133,-0.360835,-0.182863,3.01396,-9.47093)
+
+Approximate change in log likelihood: 0.0680856 (attempt 1)
+rho (approximate / predicted change in LL) = 0.981565
+Old trust region radius: 1e+100
+New trust region radius: 1e+100
+Accepted step
+
+End ITER 1
+Vegs[0][2,2]((0.969416,0.0744128),(0.0744128,0.89697))
+Vegs[1][2,2]((0.00895343,-0.0312476),(-0.0312476,0.109054))
+Vegs[2][2,2]((0.0215587,0.0029078),(0.0029078,0.0003922))
+
+-------------------------------------------------------------------------------
+
+Start ITER 2: computing AI matrix
+  Multiplying solutions by variance components... time=0.02
+  Batch-solving 9 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.05  rNorms/orig: (0.04,0.1)  res2s: 369.154..471.983
+  iter 2:  time=0.05  rNorms/orig: (0.003,0.02)  res2s: 372.289..485.115
+  iter 3:  time=0.05  rNorms/orig: (0.0004,0.001)  res2s: 372.303..485.564
+  iter 4:  time=0.05  rNorms/orig: (4e-05,0.0001)  res2s: 372.304..485.569
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 58.0%, memory/overhead = 42.0%
+Reducing off-diagonals by a factor of 3.72529e-09 to make matrix positive definite
+Reducing off-diagonals by a factor of 1.74809e-06 to make matrix positive definite
+Reducing off-diagonals by a factor of 3.72529e-09 to make matrix positive definite
+Reducing off-diagonals by a factor of 1.86265e-09 to make matrix positive definite
+
+Constrained Newton-Raphson optimized variance parameters:
+optVegs[0][2,2]((0.968818,0.0716549),(0.0716549,0.900687))
+optVegs[1][2,2]((0.00781048,-0.0288054),(-0.0288054,0.106235))
+optVegs[2][2,2]((0.0230857,0.00347618),(0.00347618,0.000523436))
+
+Predicted change in log likelihood: 0.00113101
+
+Computing actual (approximate) change in log likelihood
+  Batch-solving 101 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.41  rNorms/orig: (0.06,0.08)  res2s: 693.059..722.407
+  iter 2:  time=0.41  rNorms/orig: (0.005,0.01)  res2s: 703.593..732.936
+  iter 3:  time=0.41  rNorms/orig: (0.0004,0.001)  res2s: 703.71..733.184
+  iter 4:  time=0.41  rNorms/orig: (3e-05,0.0001)  res2s: 703.711..733.188
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 61.5%, memory/overhead = 38.5%
+grad[9](-0.00528316,0.0317535,-0.0161999,-5.25706,-2.83175,-0.367353,-0.214348,2.95893,-9.69532)
+
+Approximate change in log likelihood: 0.00107041 (attempt 1)
+rho (approximate / predicted change in LL) = 0.94642
+Old trust region radius: 1e+100
+New trust region radius: 1e+100
+Accepted step
+
+End ITER 2
+Vegs[0][2,2]((0.968818,0.0716549),(0.0716549,0.900687))
+Vegs[1][2,2]((0.00781048,-0.0288054),(-0.0288054,0.106235))
+Vegs[2][2,2]((0.0230857,0.00347618),(0.00347618,0.000523436))
+
+-------------------------------------------------------------------------------
+
+Start ITER 3: computing AI matrix
+  Multiplying solutions by variance components... time=0.02
+  Batch-solving 9 systems of equations using conjugate gradient iteration
+  iter 1:  time=0.05  rNorms/orig: (0.04,0.1)  res2s: 369.437..469.544
+  iter 2:  time=0.05  rNorms/orig: (0.003,0.01)  res2s: 372.532..482.266
+  iter 3:  time=0.05  rNorms/orig: (0.0003,0.001)  res2s: 372.545..482.673
+  iter 4:  time=0.05  rNorms/orig: (4e-05,0.0001)  res2s: 372.546..482.677
+  Converged at iter 4: rNorms/orig all < CGtol=0.0005
+  Time breakdown: dgemm = 58.0%, memory/overhead = 42.0%
+Reducing off-diagonals by a factor of 1.86265e-09 to make matrix positive definite
+WARNING: NLopt threw 'nlopt::roundoff_limited':
+         Optimization halted because roundoff errors limited progress
+
+Constrained Newton-Raphson optimized variance parameters:
+optVegs[0][2,2]((0.968574,0.0717864),(0.0717864,0.900124))
+optVegs[1][2,2]((0.0078271,-0.0289055),(-0.0289055,0.106748))
+optVegs[2][2,2]((0.0232969,0.00351993),(0.00351993,0.000531827))
+
+Predicted change in log likelihood: 1.27249e-05
+AI iteration converged: predicted change in log likelihood < tol = 0.0001
+
+AIinv[9,9]((0.0361327,0.00300718,0.000457884,-0.0142656,-0.00107135,-0.000180333,-0.0170801,-0.00161469,-0.000267851),(0.00300718,0.016939,0.00238512,-0.00127635,-0.00737293,-0.000896614,-0.00139944,-0.00743526,-0.00119104),(0.000457884,0.00238512,0.0315783,-0.000251207,-0.000989525,-0.0149709,-0.000193521,-0.00108782,-0.0128337),(-0.0142656,-0.00127635,-0.000251207,0.0161225,0.000840634,0.000114787,-0.00142516,0.000409322,0.00013979),(-0.00107135,-0.00737293,-0.000989525,0.000840634,0.00795218,0.00070579,0.000188564,-0.000205226,0.000251268),(-0.000180333,-0.000896614,-0.0149709,0.000114787,0.00070579,0.0159506,6.49363e-05,0.00014707,0.000176603),(-0.0170801,-0.00139944,-0.000193521,-0.00142516,0.000188564,6.49363e-05,0.018728,0.00115751,0.000128163),(-0.00161469,-0.00743526,-0.00108782,0.000409322,-0.000205226,0.00014707,0.00115751,0.007901,0.000914568),(-0.000267851,-0.00119104,-0.0128337,0.00013979,0.000251268,0.000176603,0.000128163,0.000914568,0.0133447))
+
+Variance component 0: [2,2]((0.968574,0.0717864),(0.0717864,0.900124))
+  entry (1,1): 0.968574 (0.190086)
+  entry (1,2): 0.071786 (0.130150)   corr (1,2): 0.076882
+  entry (2,2): 0.900124 (0.177703)
+Variance component 1: [2,2]((0.0078271,-0.0289055),(-0.0289055,0.106748))
+  entry (1,1): 0.007827 (0.126974)
+  entry (1,2): -0.028906 (0.089175)   corr (1,2): -1.000000
+  entry (2,2): 0.106748 (0.126296)
+Variance component 2: [2,2]((0.0232969,0.00351993),(0.00351993,0.000531827))
+  entry (1,1): 0.023297 (0.136850)
+  entry (1,2): 0.003520 (0.088888)   corr (1,2): 0.999999
+  entry (2,2): 0.000532 (0.115519)
+
+Phenotype 1 variance sigma2: 0.960289 (0.070859)
+Phenotype 2 variance sigma2: 0.251554 (0.034484)
+
+Variance component 0:  (environment/noise)
+  h2e (1,1): 0.968867 (0.179733)
+  resid corr (1,2): 0.076882 (0.138788)
+  h2e (2,2): 0.893508 (0.170819)
+Variance component 1:  "chr21"
+  h2g (1,1): 0.007829 (0.127621)
+  gen corr (1,2): -1.000000 (8.970434)
+  h2g (2,2): 0.105964 (0.125272)
+Variance component 2:  "chr22"
+  h2g (1,1): 0.023304 (0.137547)
+  gen corr (1,2): 0.999999 (109.834072)
+  h2g (2,2): 0.000528 (0.115239)
+
+Total elapsed time for analysis = 10.8229 sec
