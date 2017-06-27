@@ -6,6 +6,7 @@ import breeze.stats.distributions.Gaussian
 import breeze.stats.mean
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
+import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.variant.VariantDataset
 import org.apache.hadoop.conf.Configuration
@@ -35,6 +36,11 @@ class BoltSuite extends SparkSuite {
     val phenotypesPath = "src/test/resources/bolt-lmm/EUR_subset.pheno.covars"
     val vdsPheno = annotatePhenotypes(vdsExclude, phenotypesPath)
     assert(vdsPheno.count()._1 == 369, "nSamples after removing missing phenotypes")
+
+    val (y, _, _) = RegressionUtils.getPhenoCovCompleteSamples(vdsPheno, "sa.pheno", Array.empty[String])
+    val yNorm = meanCenterNormalize(y)
+    println(y)
+    println(yNorm)
   }
 
   def removeSamples(vds: VariantDataset, hadoopConf: Configuration, removeSamplesPath:
