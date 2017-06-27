@@ -31,6 +31,10 @@ class BoltSuite extends SparkSuite {
     val (nSamplesFiltered, nVariantsFiltered) = vdsExclude.count()
     assert(nSamplesFiltered == 373, "nSamples after processing remove file")
     assert(nVariantsFiltered == 48646, "nVariants after processing exclude file")
+
+    val phenotypesPath = "src/test/resources/bolt-lmm/EUR_subset.pheno.covars"
+    val vdsPheno = annotatePhenotypes(vdsExclude, phenotypesPath)
+    assert(vdsPheno.count()._1 == 369, "nSamples after removing missing phenotypes")
   }
 
   def removeSamples(vds: VariantDataset, hadoopConf: Configuration, removeSamplesPath:
@@ -49,6 +53,13 @@ class BoltSuite extends SparkSuite {
         val va0 = va.asInstanceOf[GenericRow].get(0)
         !excludedSnps.contains(va0.asInstanceOf[String])
     }
+  }
+
+  def annotatePhenotypes(vds: VariantDataset, phenotypesPath: String): VariantDataset = {
+    val phenotypes = hc.importTable(phenotypesPath, impute = true, separator = " ")
+      .keyBy("IID")
+    lazy val vdsPheno = vds.annotateSamplesTable(phenotypes, expr = "sa.pheno=table.PHENO")
+    vdsPheno.filterSamplesExpr("isDefined(sa.pheno) && sa.pheno != -9") // -9 == missing
   }
 
   //@Test
