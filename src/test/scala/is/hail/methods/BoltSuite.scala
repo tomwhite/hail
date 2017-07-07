@@ -6,10 +6,11 @@ import breeze.stats.distributions.Gaussian
 import breeze.stats.mean
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
-import is.hail.stats.RegressionUtils
+import is.hail.stats.{RegressionUtils, ToNormalizedRowMatrix}
 import is.hail.utils._
 import is.hail.variant.VariantDataset
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, RowMatrix}
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.testng.annotations.Test
 
@@ -38,9 +39,19 @@ class BoltSuite extends SparkSuite {
     assert(vdsPheno.count()._1 == 369, "nSamples after removing missing phenotypes")
 
     val (y, _, _) = RegressionUtils.getPhenoCovCompleteSamples(vdsPheno, "sa.pheno", Array.empty[String])
-    val yNorm = meanCenterNormalize(y)
+    val ynorm = meanCenterNormalize(y)
     println(y)
-    println(yNorm)
+    println(ynorm)
+
+    val vdsPhenoRowMatrix = ToNormalizedRowMatrix(vdsPheno)
+    val xnorm = toBreeze(vdsPhenoRowMatrix).t
+    println(xnorm)
+
+//    val (sigmaGSq, sigmaESq) = estimateVarianceParameters(xnorm, ynorm)
+//
+//    println("Final results")
+//    println("sigmaGSq: " + sigmaGSq)
+//    println("sigmaESq: " + sigmaESq)
   }
 
   def removeSamples(vds: VariantDataset, hadoopConf: Configuration, removeSamplesPath:
@@ -66,6 +77,20 @@ class BoltSuite extends SparkSuite {
       .keyBy("IID")
     lazy val vdsPheno = vds.annotateSamplesTable(phenotypes, expr = "sa.pheno=table.PHENO")
     vdsPheno.filterSamplesExpr("isDefined(sa.pheno) && sa.pheno != -9") // -9 == missing
+  }
+
+  def toBreeze(rowMatrix: RowMatrix): DenseMatrix[Double] = {
+    val m = rowMatrix.numRows().toInt
+    val n = rowMatrix.numCols().toInt
+    val mat = DenseMatrix.zeros[Double](m, n)
+    var i = 0
+    rowMatrix.rows.collect().foreach { vector =>
+      vector.foreachActive { case (j, v) =>
+        mat(i, j) = v
+      }
+      i += 1
+    }
+    mat
   }
 
   //@Test
@@ -130,6 +155,8 @@ class BoltSuite extends SparkSuite {
     // TODO: check that y has N rows
 
     val mcTrials = math.max(math.min(4e9 / (N * N), 15), 3).toInt
+    println("Using default number of random trials: " + mcTrials)
+
     val betaRand = DenseMatrix.rand(M, mcTrials, Gaussian(0, math.sqrt(1.0 / M)))
     val eRandUnscaled = DenseMatrix.rand(N, mcTrials, Gaussian(0, 1))
 
@@ -159,6 +186,7 @@ class BoltSuite extends SparkSuite {
       for (s <- 3 until maxS) {
         logDelta(s) = (logDelta(s - 2) * f(s - 1) - logDelta(s - 1) * f(s - 2)) / (f(s - 1) - f(s - 2))
         if (math.abs(logDelta(s) - logDelta(s - 1)) < 0.01) {
+          println("Secant iteration for h2 estimation converged in " + (s - 3) + " steps")
           break
         }
         val ts = evalfREML(logDelta(s), X, y, mcTrials, betaRand, eRandUnscaled)
@@ -173,6 +201,8 @@ class BoltSuite extends SparkSuite {
 
   def evalfREML(logDelta: Double, X: DenseMatrix[Double], y: DenseVector[Double], mcTrials: Int, betaRand: DenseMatrix[Double], eRandUnscaled: DenseMatrix[Double]): (Double, Double, Double)
   = {
+    println("Estimating MC scaling f_REML at log(delta) = " + logDelta)
+
     val M = X.cols
     val N = X.rows
     val delta = math.exp(logDelta)
@@ -199,25 +229,25 @@ class BoltSuite extends SparkSuite {
       betaHatRand(::, t) := (1.0 / M) * X.t * HinvYRand
       eHatRand(::, t) := delta * HinvYRand
     }
-    println()
-    println("yRand: " + yRand)
-    println()
-    println("betaHatRand: " + betaHatRand)
-    println()
-    println("eHatRand: " + eHatRand)
-    println()
-    println("delta: " + delta)
+//    println()
+//    println("yRand: " + yRand)
+//    println()
+//    println("betaHatRand: " + betaHatRand)
+//    println()
+//    println("eHatRand: " + eHatRand)
+//    println()
+//    println("delta: " + delta)
 
     // compute BLUP estimated SNP effect sizes and residuals for real phenotypes
     val HinvYData = cg.minimize(y, H)
     val betaHatData = (1.0 / M) * X.t * HinvYData
     val eHatData = delta * HinvYData
-    println()
-    println("y:" + y)
-    println()
-    println("betaHatData: " + betaHatData)
-    println()
-    println("eHatData: " + eHatData)
+//    println()
+//    println("y:" + y)
+//    println()
+//    println("betaHatData: " + betaHatData)
+//    println()
+//    println("eHatData: " + eHatData)
 
     // evaluate fREML
     var betaHatRandSumSq = 0.0
@@ -229,21 +259,23 @@ class BoltSuite extends SparkSuite {
     val betaHatDataSumSq = sq(betaHatData)
     val eHatDataSumSq = sq(eHatData)
 
-    println()
-    println("betaHatRandSumSq: " + betaHatRandSumSq)
-    println("eHatRandSumSq: " + eHatRandSumSq)
-    println("betaHatDataSumSq: " + betaHatDataSumSq)
-    println("eHatDataSumSq: " + eHatDataSumSq)
+//    println()
+//    println("betaHatRandSumSq: " + betaHatRandSumSq)
+//    println("eHatRandSumSq: " + eHatRandSumSq)
+//    println("betaHatDataSumSq: " + betaHatDataSumSq)
+//    println("eHatDataSumSq: " + eHatDataSumSq)
 
     val f = math.log((betaHatRandSumSq / eHatRandSumSq) / (betaHatDataSumSq / eHatDataSumSq))
     val sigmaGSq = ((1.0 / N) * y.t * HinvYData).valueAt(0)
     // convert 1x1 vector to double
     val sigmaESq = delta * sigmaGSq
 
-    println()
-    println("f: " + f)
-    println("sigmaGSq: " + sigmaGSq)
-    println("sigmaESq: " + sigmaESq)
+//    println()
+//    println("f: " + f)
+//    println("sigmaGSq: " + sigmaGSq)
+//    println("sigmaESq: " + sigmaESq)
+
+    println("  MCscaling: logDelta = " + logDelta + ", f = " + f)
 
     (f, sigmaGSq, sigmaESq)
   }
