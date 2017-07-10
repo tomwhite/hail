@@ -11,6 +11,7 @@ import is.hail.utils._
 import is.hail.variant.VariantDataset
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, RowMatrix}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.testng.annotations.Test
 
@@ -18,7 +19,7 @@ import scala.util.control.Breaks._
 
 class BoltSuite extends SparkSuite {
 
-  @Test
+  //@Test
   def testBoltExampleData(): Unit = {
     val vds = hc.importPlinkBFile("src/test/resources/bolt-lmm/EUR_subset", quantPheno = true)
     val (nSamples, nVariants) = vds.count()
@@ -33,6 +34,47 @@ class BoltSuite extends SparkSuite {
     val (nSamplesFiltered, nVariantsFiltered) = vdsExclude.count()
     assert(nSamplesFiltered == 373, "nSamples after processing remove file")
     assert(nVariantsFiltered == 48646, "nVariants after processing exclude file")
+
+    val phenotypesPath = "src/test/resources/bolt-lmm/EUR_subset.pheno.covars"
+    val vdsPheno = annotatePhenotypes(vdsExclude, phenotypesPath)
+    assert(vdsPheno.count()._1 == 369, "nSamples after removing missing phenotypes")
+
+    val (y, _, _) = RegressionUtils.getPhenoCovCompleteSamples(vdsPheno, "sa.pheno", Array.empty[String])
+    val ynorm = meanCenterNormalize(y)
+    println(y)
+    println(ynorm)
+
+    val vdsPhenoRowMatrix = ToNormalizedRowMatrix(vdsPheno)
+    val xnorm = toBreeze(vdsPhenoRowMatrix).t
+    println(xnorm)
+  }
+
+  @Test
+  def testBoltExampleDataWithVariantsRemoved(): Unit = {
+    val vds = hc.importPlinkBFile("src/test/resources/bolt-lmm/EUR_subset", quantPheno = true)
+    val (nSamples, nVariants) = vds.count()
+    assert(nSamples == 379, "nSamples total")
+    assert(nVariants == 54051, "nVariants total")
+
+    val removeSamplesPath = "src/test/resources/bolt-lmm/EUR_subset.remove"
+    val excludeSnpsPath = "src/test/resources/bolt-lmm/EUR_subset.exclude.more"
+    val vdsRemove = removeSamples(vds, hadoopConf, removeSamplesPath)
+
+    // TODO: iterate over annotations to get SNP ids
+    // tail -n +101 /tmp/snps.txt > src/test/resources/bolt-lmm/EUR_subset.exclude.more
+//    import java.io._
+//    val pw = new PrintWriter(new File("/tmp/snps.txt"))
+//    vdsRemove.variantsAndAnnotations.map {
+//      case (_, va) =>
+//        va.asInstanceOf[GenericRow].get(0).asInstanceOf[String]
+//    }.collect().foreach(pw.println(_))
+//    pw.close()
+
+    val vdsExclude = excludeSnps(vdsRemove, hadoopConf, excludeSnpsPath)
+
+    val (nSamplesFiltered, nVariantsFiltered) = vdsExclude.count()
+    assert(nSamplesFiltered == 373, "nSamples after processing remove file")
+    assert(nVariantsFiltered == 100, "nVariants after processing exclude file")
 
     val phenotypesPath = "src/test/resources/bolt-lmm/EUR_subset.pheno.covars"
     val vdsPheno = annotatePhenotypes(vdsExclude, phenotypesPath)
