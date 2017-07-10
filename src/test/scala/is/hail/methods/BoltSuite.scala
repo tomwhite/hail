@@ -194,7 +194,7 @@ class BoltSuite extends SparkSuite {
 
     val M = X.cols
     val N = X.rows
-    // TODO: check that y has N rows
+    require(y.length == N, "y must have same number of rows as X has columns (" + N + ")")
 
     val mcTrials = math.max(math.min(4e9 / (N * N), 15), 3).toInt
     println("Using default number of random trials: " + mcTrials)
@@ -252,7 +252,7 @@ class BoltSuite extends SparkSuite {
 
     // TODO: note that we should not compute H, but instead have a custom CG
     // implementation that does the computation using X directly
-    val H = (1.0 / M) * (X * X.t) + delta * DenseMatrix.eye[Double](M)
+    val H = (1.0 / M) * (X * X.t) + delta * DenseMatrix.eye[Double](N)
 
     val cg = new ConjugateGradient[DenseVector[Double], DenseMatrix[Double]](maxIterations = 100)
 
