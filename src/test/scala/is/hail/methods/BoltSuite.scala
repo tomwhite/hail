@@ -10,8 +10,7 @@ import is.hail.stats.{RegressionUtils, ToNormalizedRowMatrix}
 import is.hail.utils._
 import is.hail.variant.VariantDataset
 import org.apache.hadoop.conf.Configuration
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, RowMatrix}
-import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.linalg.distributed.RowMatrix
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.testng.annotations.Test
 
@@ -19,7 +18,7 @@ import scala.util.control.Breaks._
 
 class BoltSuite extends SparkSuite {
 
-  //@Test
+  @Test
   def testBoltExampleData(): Unit = {
     val vds = hc.importPlinkBFile("src/test/resources/bolt-lmm/EUR_subset", quantPheno = true)
     val (nSamples, nVariants) = vds.count()
@@ -47,9 +46,19 @@ class BoltSuite extends SparkSuite {
     val vdsPhenoRowMatrix = ToNormalizedRowMatrix(vdsPheno)
     val xnorm = toBreeze(vdsPhenoRowMatrix).t
     println(xnorm)
+
+    val (sigmaGSq, sigmaESq) = estimateVarianceParameters(xnorm, ynorm)
+
+    println("Final results")
+    println("sigmaGSq: " + sigmaGSq)
+    println("sigmaESq: " + sigmaESq)
+
+    val sigma2K = 0.139236 // from running BOLT-LMM, sigma2K seems to be sigma g squared
+    // TODO: this passed once, but converges onto different values (unstable)
+    assert(math.abs((sigmaGSq - sigma2K)/sigmaGSq) < 0.01, "Should be better than 1%")
   }
 
-  @Test
+  //@Test
   def testBoltExampleDataWithVariantsRemoved(): Unit = {
     val vds = hc.importPlinkBFile("src/test/resources/bolt-lmm/EUR_subset", quantPheno = true)
     val (nSamples, nVariants) = vds.count()
@@ -202,9 +211,8 @@ class BoltSuite extends SparkSuite {
     val betaRand = DenseMatrix.rand(M, mcTrials, Gaussian(0, math.sqrt(1.0 / M)))
     val eRandUnscaled = DenseMatrix.rand(N, mcTrials, Gaussian(0, 1))
 
-    val maxS = 4
-    // TODO: 7, but diverges
-    // use 1-indexes to match pseudocode
+    val maxS = 7
+    // use 1-indexes below to match pseudocode
     val hSq = new Array[Double](maxS + 1)
     val logDelta = new Array[Double](maxS + 1)
     val f = new Array[Double](maxS + 1)
